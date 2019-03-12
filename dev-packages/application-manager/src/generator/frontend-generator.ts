@@ -15,6 +15,7 @@
  ********************************************************************************/
 
 import { AbstractGenerator } from './abstract-generator';
+import { existsSync, readFileSync } from 'fs';
 
 export class FrontendGenerator extends AbstractGenerator {
 
@@ -27,6 +28,20 @@ export class FrontendGenerator extends AbstractGenerator {
         }
     }
 
+    protected compileIndexPreload(frontendModules: Map<string, string>): string {
+        const template = this.pck.props.generator.config.preloadTemplate;
+        if (!template) {
+            return '';
+        }
+
+        // Support path to html file
+        if (existsSync(template)) {
+            return readFileSync(template).toString();
+        }
+
+        return template;
+    }
+
     protected compileIndexHtml(frontendModules: Map<string, string>): string {
         return `<!DOCTYPE html>
 <html>
@@ -36,7 +51,7 @@ export class FrontendGenerator extends AbstractGenerator {
 </head>
 
 <body>
-  <div class="theia-preload"></div>
+  <div class="theia-preload">${this.compileIndexPreload(frontendModules)}</div>
 </body>
 
 </html>`;
@@ -111,11 +126,15 @@ const electron = require('electron');
 const { join, resolve } = require('path');
 const { isMaster } = require('cluster');
 const { fork } = require('child_process');
-const { app, BrowserWindow, ipcMain, Menu } = electron;
+const { app, shell, BrowserWindow, ipcMain, Menu } = electron;
 
 const applicationName = \`${this.pck.props.frontend.config.applicationName}\`;
 
 if (isMaster) {
+
+    const Storage = require('electron-store');
+    const electronStore = new Storage();
+
     app.on('ready', () => {
         const { screen } = electron;
 
@@ -123,9 +142,6 @@ if (isMaster) {
         Menu.setApplicationMenu(Menu.buildFromTemplate([{
             role: 'help', submenu: [{ role: 'toggledevtools'}]
         }]));
-
-        // Window list tracker.
-        const windows = [];
 
         function createNewWindow(theUrl) {
 
@@ -138,43 +154,63 @@ if (isMaster) {
             const y = Math.floor(bounds.y + (bounds.height - height) / 2);
             const x = Math.floor(bounds.x + (bounds.width - width) / 2);
 
-            const newWindow = new BrowserWindow({ width, height, x, y, show: !!theUrl, title: applicationName });
+            const windowStateName = 'windowstate';
+            const windowState = electronStore.get(windowStateName, {
+                width, height, x, y
+            });
 
-            if (windows.length === 0) {
-                newWindow.webContents.on('new-window', (event, url, frameName, disposition, options) => {
-                    // If the first electron window isn't visible, then all other new windows will remain invisible.
-                    // https://github.com/electron/electron/issues/3751
-                    options.show = true;
-                    options.width = width;
-                    options.height = height;
-                    options.title = applicationName;
-                });
+            let windowOptions = {
+                show: false,
+                title: applicationName,
+                width: windowState.width,
+                height: windowState.height,
+                x: windowState.x,
+                y: windowState.y
+            };
+            if (windowState.isMaximized) {
+                windowOptions.isMaximized = true;
             }
-            windows.push(newWindow);
+
+            // Always hide the window, we will show the window when it is ready to be shown in any case.
+            const newWindow = new BrowserWindow(windowOptions);
+            windowOptions.isMaximized && newWindow.maximize();
+            newWindow.on('ready-to-show', () => newWindow.show());
+
+            // Prevent calls to "window.open" from opening an ElectronBrowser window,
+            // and rather open in the OS default web browser.
+            newWindow.webContents.on('new-window', (event, url) => {
+                event.preventDefault();
+                shell.openExternal(url);
+            });
+
+            const saveState = () => {
+                const bounds = newWindow.getBounds();
+                electronStore.set(windowStateName, {
+                    isMaximized: newWindow.isMaximized(),
+                    width: bounds.width,
+                    height: bounds.height,
+                    x: bounds.x,
+                    y: bounds.y
+                })
+            }
+            newWindow.on('close', saveState);
+            newWindow.on('resize', saveState);
+            newWindow.on('move', saveState);
+
             if (!!theUrl) {
                 newWindow.loadURL(theUrl);
-            } else {
-                newWindow.on('ready-to-show', () => newWindow.show());
             }
-            newWindow.on('closed', () => {
-                const index = windows.indexOf(newWindow);
-                if (index !== -1) {
-                    windows.splice(index, 1);
-                }
-                if (windows.length === 0) {
-                    app.exit(0);
-                }
-            });
             return newWindow;
         }
 
         app.on('window-all-closed', () => {
-            if (process.platform !== 'darwin') {
-                app.quit();
-            }
+            app.quit();
         });
         ipcMain.on('create-new-window', (event, url) => {
             createNewWindow(url);
+        });
+        ipcMain.on('open-external', (event, url) => {
+            shell.openExternal(url);
         });
 
         // Check whether we are in bundled application or development mode.
@@ -182,7 +218,9 @@ if (isMaster) {
         const devMode = process.defaultApp || /node_modules[\/]electron[\/]/.test(process.execPath);
         const mainWindow = createNewWindow();
         const loadMainWindow = (port) => {
-            mainWindow.loadURL('file://' + join(__dirname, '../../lib/index.html') + '?port=' + port);
+            if (!mainWindow.isDestroyed()) {
+                mainWindow.loadURL('file://' + join(__dirname, '../../lib/index.html') + '?port=' + port);
+            }
         };
 
         // We cannot use the \`process.cwd()\` as the application project path (the location of the \`package.json\` in other words)

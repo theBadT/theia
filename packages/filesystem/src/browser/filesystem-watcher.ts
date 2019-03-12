@@ -76,6 +76,11 @@ export namespace FileMoveEvent {
     }
 }
 
+export interface FileWillMoveEvent {
+    sourceUri: URI
+    targetUri: URI
+}
+
 @injectable()
 export class FileSystemWatcher implements Disposable {
 
@@ -87,6 +92,9 @@ export class FileSystemWatcher implements Disposable {
 
     protected readonly onDidMoveEmitter = new Emitter<FileMoveEvent>();
     readonly onDidMove: Event<FileMoveEvent> = this.onDidMoveEmitter.event;
+
+    protected readonly onWillMoveEmitter = new Emitter<FileWillMoveEvent>();
+    readonly onWillMove: Event<FileWillMoveEvent> = this.onWillMoveEmitter.event;
 
     @inject(FileSystemWatcherServer)
     protected readonly server: FileSystemWatcherServer;
@@ -120,7 +128,8 @@ export class FileSystemWatcher implements Disposable {
 
         this.filesystem.setClient({
             shouldOverwrite: this.shouldOverwrite.bind(this),
-            onDidMove: this.fireDidMove.bind(this)
+            onDidMove: this.fireDidMove.bind(this),
+            onWillMove: this.fireWillMove.bind(this)
         });
     }
 
@@ -146,7 +155,7 @@ export class FileSystemWatcher implements Disposable {
      * Return a disposable to stop file watching under the given uri.
      */
     watchFileChanges(uri: URI): Promise<Disposable> {
-        return this.createWatchOptions()
+        return this.createWatchOptions(uri.toString())
             .then(options =>
                 this.server.watchFileChanges(uri.toString(), options)
             )
@@ -167,20 +176,26 @@ export class FileSystemWatcher implements Disposable {
             });
     }
 
-    protected createWatchOptions(): Promise<WatchOptions> {
-        return this.getIgnored().then(ignored => ({
+    protected createWatchOptions(uri: string): Promise<WatchOptions> {
+        return this.getIgnored(uri).then(ignored => ({
             ignored
         }));
     }
 
-    protected getIgnored(): Promise<string[]> {
-        const patterns = this.preferences['files.watcherExclude'];
-
-        return Promise.resolve(Object.keys(patterns).filter(pattern => patterns[pattern]));
+    protected async getIgnored(uri: string): Promise<string[]> {
+        const patterns = this.preferences.get('files.watcherExclude', undefined, uri);
+        return Object.keys(patterns).filter(pattern => patterns[pattern]);
     }
 
     protected fireDidMove(sourceUri: string, targetUri: string): void {
         this.onDidMoveEmitter.fire({
+            sourceUri: new URI(sourceUri),
+            targetUri: new URI(targetUri)
+        });
+    }
+
+    protected fireWillMove(sourceUri: string, targetUri: string): void {
+        this.onWillMoveEmitter.fire({
             sourceUri: new URI(sourceUri),
             targetUri: new URI(targetUri)
         });

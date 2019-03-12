@@ -38,7 +38,12 @@ import {
     Menu,
     PluginPackageMenu,
     PluginPackageDebuggersContribution,
-    DebuggerContribution
+    DebuggerContribution,
+    SnippetContribution,
+    PluginPackageCommand,
+    PluginCommand,
+    IconUrl,
+    getPluginId
 } from '../../../common/plugin-protocol';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -48,6 +53,7 @@ import { CharacterPair } from '../../../api/plugin-api';
 import * as jsoncparser from 'jsonc-parser';
 import { IJSONSchema } from '@theia/core/lib/common/json-schema';
 import { deepClone } from '@theia/core/lib/common/objects';
+import { FileUri } from '@theia/core/lib/node/file-uri';
 
 namespace nls {
     export function localize(key: string, _default: string) {
@@ -113,6 +119,7 @@ export class TheiaPluginScanner implements PluginScanner {
             const config = this.readConfiguration(rawPlugin.contributes.configuration!, rawPlugin.packagePath);
             contributions.configuration = config;
         }
+        contributions.configurationDefaults = rawPlugin.contributes.configurationDefaults;
 
         if (rawPlugin.contributes!.languages) {
             const languages = this.readLanguages(rawPlugin.contributes.languages!, rawPlugin.packagePath);
@@ -150,6 +157,12 @@ export class TheiaPluginScanner implements PluginScanner {
             });
         }
 
+        const pluginCommands = rawPlugin.contributes.commands;
+        if (pluginCommands) {
+            const commands = Array.isArray(pluginCommands) ? pluginCommands : [pluginCommands];
+            contributions.commands = commands.map(command => this.readCommand(command, rawPlugin));
+        }
+
         if (rawPlugin.contributes!.menus) {
             contributions.menus = {};
 
@@ -168,7 +181,57 @@ export class TheiaPluginScanner implements PluginScanner {
             contributions.debuggers = debuggers;
         }
 
+        contributions.snippets = this.readSnippets(rawPlugin);
         return contributions;
+    }
+
+    protected readCommand({ command, title, category, icon }: PluginPackageCommand, pck: PluginPackage): PluginCommand {
+        let iconUrl: IconUrl | undefined;
+        if (icon) {
+            if (typeof icon === 'string') {
+                iconUrl = this.toPluginUrl(pck, icon);
+            } else {
+                iconUrl = {
+                    light: this.toPluginUrl(pck, icon.light),
+                    dark: this.toPluginUrl(pck, icon.dark)
+                };
+            }
+        }
+        return { command, title, category, iconUrl };
+    }
+
+    protected toPluginUrl(pck: PluginPackage, relativePath: string): string {
+        return path.join('hostedPlugin', getPluginId(pck), relativePath);
+    }
+
+    protected readSnippets(pck: PluginPackage): SnippetContribution[] | undefined {
+        if (!pck.contributes || !pck.contributes.snippets) {
+            return undefined;
+        }
+        const result: SnippetContribution[] = [];
+        for (const contribution of pck.contributes.snippets) {
+            if (contribution.path) {
+                result.push({
+                    language: contribution.language,
+                    source: pck.displayName || pck.name,
+                    uri: FileUri.create(path.join(pck.packagePath, contribution.path)).toString()
+                });
+            }
+        }
+        return result;
+    }
+
+    protected readJson<T>(filePath: string): T | undefined {
+        const content = this.readFileSync(filePath);
+        return content ? jsoncparser.parse(content, undefined, { disallowComments: false }) : undefined;
+    }
+    protected readFileSync(filePath: string): string {
+        try {
+            return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
+        } catch (e) {
+            console.error(e);
+            return '';
+        }
     }
 
     // tslint:disable-next-line:no-any
@@ -184,7 +247,10 @@ export class TheiaPluginScanner implements PluginScanner {
         return {
             keybinding: rawKeybinding.key,
             command: rawKeybinding.command,
-            context: rawKeybinding.when
+            when: rawKeybinding.when,
+            mac: rawKeybinding.mac,
+            linux: rawKeybinding.linux,
+            win: rawKeybinding.win
         };
     }
 
@@ -244,11 +310,8 @@ export class TheiaPluginScanner implements PluginScanner {
             mimetypes: rawLang.mimetypes
         };
         if (rawLang.configuration) {
-            const conf = fs.readFileSync(path.resolve(pluginPath, rawLang.configuration), 'utf8');
-            if (conf) {
-                const strippedContent = jsoncparser.stripComments(conf);
-                const rawConfiguration: PluginPackageLanguageContributionConfiguration = jsoncparser.parse(strippedContent);
-
+            const rawConfiguration = this.readJson<PluginPackageLanguageContributionConfiguration>(path.resolve(pluginPath, rawLang.configuration));
+            if (rawConfiguration) {
                 const configuration: LanguageConfiguration = {
                     brackets: rawConfiguration.brackets,
                     comments: rawConfiguration.comments,

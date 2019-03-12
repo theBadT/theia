@@ -29,14 +29,15 @@ export class PreferencesFrontendApplicationContribution implements FrontendAppli
     @inject(InMemoryResources) inmemoryResources: InMemoryResources;
 
     onStart() {
-        this.schemaProvider.ready.then(async () => {
-            const schema = this.schemaProvider.getCombinedSchema();
-            const uri = new URI('vscode://schemas/settings/user');
-            this.inmemoryResources.add(uri, JSON.stringify(schema));
-            this.jsonSchemaStore.registerSchema({
-                fileMatch: ['.theia/settings.json', USER_PREFERENCE_URI.toString()],
-                url: uri.toString()
-            });
+        const serializeSchema = () => JSON.stringify(this.schemaProvider.getCombinedSchema());
+        const uri = new URI('vscode://schemas/settings/user');
+        this.inmemoryResources.add(uri, serializeSchema());
+        this.jsonSchemaStore.registerSchema({
+            fileMatch: ['.theia/settings.json', USER_PREFERENCE_URI.toString()],
+            url: uri.toString()
         });
+        this.schemaProvider.onDidPreferenceSchemaChanged(() =>
+            this.inmemoryResources.update(uri, serializeSchema())
+        );
     }
 }

@@ -1,25 +1,29 @@
 {
   "name": "@theia/debug",
-  "version": "0.3.18",
+  "version": "0.4.0",
   "description": "Theia - Debug Extension",
   "dependencies": {
-    "@theia/console": "^0.3.18",
-    "@theia/core": "^0.3.18",
-    "@theia/editor": "^0.3.18",
-    "@theia/filesystem": "^0.3.18",
-    "@theia/json": "^0.3.18",
-    "@theia/markers": "^0.3.18",
-    "@theia/monaco": "^0.3.18",
-    "@theia/output": "^0.3.18",
-    "@theia/process": "^0.3.18",
-    "@theia/terminal": "^0.3.18",
-    "@theia/variable-resolver": "^0.3.18",
-    "@theia/workspace": "^0.3.18",
+    "@theia/console": "^0.4.0",
+    "@theia/core": "^0.4.0",
+    "@theia/editor": "^0.4.0",
+    "@theia/filesystem": "^0.4.0",
+    "@theia/json": "^0.4.0",
+    "@theia/markers": "^0.4.0",
+    "@theia/monaco": "^0.4.0",
+    "@theia/output": "^0.4.0",
+    "@theia/process": "^0.4.0",
+    "@theia/terminal": "^0.4.0",
+    "@theia/variable-resolver": "^0.4.0",
+    "@theia/workspace": "^0.4.0",
     "@types/p-debounce": "^1.0.0",
     "jsonc-parser": "^2.0.2",
+    "mkdirp": "^0.5.0",
     "p-debounce": "^1.0.0",
+    "requestretry": "^3.1.0",
+    "tar": "^4.0.0",
     "unzip-stream": "^0.3.0",
-    "vscode-debugprotocol": "^1.32.0"
+    "vscode-debugprotocol": "^1.32.0",
+    "vscode-uri": "^1.0.1"
   },
   "publishConfig": {
     "access": "public"
@@ -60,7 +64,7 @@
     "docs": "theiaext docs"
   },
   "devDependencies": {
-    "@theia/ext-scripts": "^0.3.18"
+    "@theia/ext-scripts": "^0.4.0"
   },
   "nyc": {
     "extends": "../../configs/nyc.json"

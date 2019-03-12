@@ -23,12 +23,16 @@ import {
 } from '../../common';
 import { KeybindingRegistry, Keybinding } from '../keybinding';
 import { FrontendApplicationContribution, FrontendApplication } from '../frontend-application';
+import { ContextKeyService } from '../context-key-service';
 
 @injectable()
 export class BrowserMainMenuFactory {
 
     @inject(ILogger)
     protected readonly logger: ILogger;
+
+    @inject(ContextKeyService)
+    protected readonly contextKeyService: ContextKeyService;
 
     constructor(
         @inject(CommandRegistry) protected readonly commandRegistry: CommandRegistry,
@@ -46,7 +50,7 @@ export class BrowserMainMenuFactory {
 
         for (const menu of menuModel.children) {
             if (menu instanceof CompositeMenuNode) {
-                const menuWidget = new DynamicMenuWidget(menu, { commands: phosphorCommands });
+                const menuWidget = new DynamicMenuWidget(menu, { commands: phosphorCommands }, this.contextKeyService);
                 menuBar.addMenu(menuWidget);
             }
         }
@@ -57,7 +61,7 @@ export class BrowserMainMenuFactory {
         const menuModel = this.menuProvider.getMenu(path);
         const phosphorCommands = this.createPhosphorCommands(menuModel);
 
-        const contextMenu = new DynamicMenuWidget(menuModel, { commands: phosphorCommands });
+        const contextMenu = new DynamicMenuWidget(menuModel, { commands: phosphorCommands }, this.contextKeyService);
         return contextMenu;
     }
 
@@ -83,7 +87,7 @@ export class BrowserMainMenuFactory {
             return;
         }
         if (commands.hasCommand(command.id)) {
-            this.logger.warn(`Command with ID ${command.id} is already registered`);
+            // several menu items can be registered for the same command in different contexts
             return;
         }
         commands.addCommand(command.id, {
@@ -129,7 +133,11 @@ class DynamicMenuBarWidget extends MenuBarWidget {
  */
 class DynamicMenuWidget extends MenuWidget {
 
-    constructor(protected menu: CompositeMenuNode, protected options: MenuWidget.IOptions) {
+    constructor(
+        protected menu: CompositeMenuNode,
+        protected options: MenuWidget.IOptions,
+        protected contextKeyService: ContextKeyService
+    ) {
         super(options);
         if (menu.label) {
             this.title.label = menu.label;
@@ -176,7 +184,7 @@ class DynamicMenuWidget extends MenuWidget {
 
                     if (item.isSubmenu) { // submenu node
 
-                        const submenu = new DynamicMenuWidget(item, this.options);
+                        const submenu = new DynamicMenuWidget(item, this.options, this.contextKeyService);
                         if (submenu.items.length === 0) {
                             continue;
                         }
@@ -207,8 +215,8 @@ class DynamicMenuWidget extends MenuWidget {
                 }
 
             } else if (item instanceof ActionMenuNode) {
-
-                if (!commands.isVisible(item.action.commandId)) {
+                const { when } = item.action;
+                if (!(commands.isVisible(item.action.commandId) && (!when || this.contextKeyService.match(when)))) {
                     continue;
                 }
 

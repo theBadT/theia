@@ -41,7 +41,7 @@ function makeConfig(headless) {
         // directory is where your package.json resides, so `wdio` will be called from there.
         //
         specs: [
-            './test/**/*spec.ts'
+            './lib/test/**/*spec.js'
         ],
         // Patterns to exclude.
         exclude: [
@@ -91,7 +91,7 @@ function makeConfig(headless) {
         sync: true,
         //
         // Level of logging verbosity: silent | verbose | command | data | result | error
-        logLevel: 'result',
+        logLevel: 'error',
         //
         // Enables colors for log output.
         coloredLogs: true,
@@ -103,12 +103,15 @@ function makeConfig(headless) {
         // Saves a screenshot to a given path if a command fails.
         screenshotPath: './errorShots/',
         //
+        // Dismiss deprecation warning messages when running tests.
+        deprecationWarnings: false,
+        //
         // Set a base URL in order to shorten url command calls. If your url parameter starts
         // with "/", then the base url gets prepended.
         baseUrl: `http://${host}:${port}`,
         //
         // Default timeout for all waitFor* commands.
-        waitforTimeout: 30000,
+        waitforTimeout: 60000,
         //
         // Default timeout in milliseconds for request
         // if Selenium Grid doesn't send response
@@ -145,14 +148,14 @@ function makeConfig(headless) {
             javaArgs: ["-Xmx1024m", "-Djna.nosys=true"],
             drivers: {
                 chrome: {
-                    version: '2.33'
+                    version: '2.35'
                 }
             }
         },
         seleniumInstallArgs: {
             drivers: {
                 chrome: {
-                    version: '2.33'
+                    version: '2.35'
                 }
             }
         },
@@ -175,10 +178,9 @@ function makeConfig(headless) {
         // See the full list at http://mochajs.org/
         mochaOpts: {
             ui: 'bdd',
-            compilers: ['ts:ts-node/register'],
             requires: ['reflect-metadata/Reflect'],
-            watch: 'ts',
-            timeout: 30000,
+            watch: 'js',
+            timeout: 60000,
         },
         //
         // =====
@@ -198,7 +200,8 @@ function makeConfig(headless) {
             const argv = [process.argv[0], 'src-gen/backend/server.js', '--root-dir=' + rootDir];
             return require('./src-gen/backend/server')(port, host, argv).then(created => {
                 this.execArgv = [wdioRunnerScript, cliPortKey, created.address().port,
-                    '--theia-root-dir', rootDir];
+                    '--theia-root-dir', rootDir
+                ];
                 this.server = created;
             });
         },
@@ -254,14 +257,20 @@ function makeConfig(headless) {
         afterSuite: function (suite) {
             require("webdriverio");
             var fs = require("fs");
-            let result = browser.execute("return window.__coverage__;")
+            let result;
+            try {
+                result = browser.execute("return window.__coverage__;");
+            } catch (error) {
+                console.error(`Error retrieving the coverage: ${error}`);
+                return;
+            }
             try {
                 if (!fs.existsSync('coverage')) {
                     fs.mkdirSync('coverage');
                 }
                 fs.writeFileSync('coverage/coverage.json', JSON.stringify(result.value));
             } catch (err) {
-                console.log(`Error writing coverage ${err}`);
+                console.error(`Error writing coverage ${err}`);
             };
         },
         //

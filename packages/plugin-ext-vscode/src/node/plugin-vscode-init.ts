@@ -19,6 +19,10 @@
 import * as theia from '@theia/plugin';
 import { BackendInitializationFn, PluginAPIFactory, Plugin, emptyPlugin } from '@theia/plugin-ext';
 
+/** Set up en as a default locale for VS Code extensions using vscode-nls */
+process.env['VSCODE_NLS_CONFIG'] = JSON.stringify({ locale: 'en', availableLanguages: {} });
+process.env['VSCODE_PID'] = process.env['THEIA_PARENT_PID'];
+
 const pluginsApiImpl = new Map<string, typeof theia>();
 const plugins = new Array<Plugin>();
 let defaultApi: typeof theia;
@@ -27,20 +31,6 @@ let pluginApiFactory: PluginAPIFactory;
 
 export const doInitialization: BackendInitializationFn = (apiFactory: PluginAPIFactory, plugin: Plugin) => {
     const vscode = apiFactory(plugin);
-
-    // register the commands that are in the package.json file
-    const contributes: any = plugin.rawModel.contributes;
-    if (contributes && contributes.commands) {
-        contributes.commands.forEach((commandItem: any) => {
-            let commandLabel: string;
-            if (commandItem.category) { // if VS Code command has category we will add it before title, so label will looks like 'category: title'
-                commandLabel = commandItem.category + ': ' + commandItem.title;
-            } else {
-                commandLabel = commandItem.title;
-            }
-            vscode.commands.registerCommand({ id: commandItem.command, label: commandLabel });
-        });
-    }
 
     // replace command API as it will send only the ID as a string parameter
     const registerCommand = vscode.commands.registerCommand;
@@ -59,7 +49,7 @@ export const doInitialization: BackendInitializationFn = (apiFactory: PluginAPIF
         // redefine property
         Object.defineProperty(panel.webview, 'html', {
             set: function (html: string) {
-                const newHtml = html.replace('vscode-resource:/', '/webview/');
+                const newHtml = html.replace(new RegExp('vscode-resource:/', 'g'), '/webview/');
                 this.checkIsDisposed();
                 if (this._html !== newHtml) {
                     this._html = newHtml;
@@ -74,10 +64,10 @@ export const doInitialization: BackendInitializationFn = (apiFactory: PluginAPIF
     // use Theia plugin api instead vscode extensions
     (<any>vscode).extensions = {
         get all(): any[] {
-            return vscode.plugins.all;
+            return vscode.plugins.all.map(p => withExtensionPath(p));
         },
         getExtension(pluginId: string): any | undefined {
-            return vscode.plugins.getPlugin(pluginId);
+            return withExtensionPath(vscode.plugins.getPlugin(pluginId));
         }
     };
 
@@ -124,4 +114,12 @@ function overrideInternalLoad(): void {
 
 function findPlugin(filePath: string): Plugin | undefined {
     return plugins.find(plugin => filePath.startsWith(plugin.pluginFolder));
+}
+
+function withExtensionPath(plugin: any | undefined): any | undefined {
+    if (plugin && plugin.pluginPath) {
+        plugin.extensionPath = plugin.pluginPath;
+    }
+
+    return plugin;
 }

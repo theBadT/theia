@@ -25,7 +25,7 @@ import { EditorManager, EditorWidget, EditorOpenerOptions, EditorContextMenu, ED
 import { GitFileChange, GitFileStatus } from '../common';
 import { GitWidget } from './git-widget';
 import { GitRepositoryTracker } from './git-repository-tracker';
-import { GitQuickOpenService } from './git-quick-open-service';
+import { GitQuickOpenService, GitAction } from './git-quick-open-service';
 import { GitSyncService } from './git-sync-service';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { GitPrompt } from '../common/git-prompt';
@@ -43,13 +43,21 @@ export namespace GIT_COMMANDS {
         id: 'git.fetch',
         label: 'Git: Fetch...'
     };
+    export const PULL_DEFAULT = {
+        id: 'git.pull.default',
+        label: 'Git: Pull'
+    };
     export const PULL = {
         id: 'git.pull',
-        label: 'Git: Pull...'
+        label: 'Git: Pull from...'
+    };
+    export const PUSH_DEFAULT = {
+        id: 'git.push.default',
+        label: 'Git: Push'
     };
     export const PUSH = {
         id: 'git.push',
-        label: 'Git: Push...'
+        label: 'Git: Push to...'
     };
     export const MERGE = {
         id: 'git.merge',
@@ -95,6 +103,36 @@ export namespace GIT_COMMANDS {
     };
     export const DISCARD_ALL = {
         id: 'git.discard.all'
+    };
+    export const STASH = {
+        id: 'git.stash',
+        category: 'Git',
+        label: 'Stash...'
+    };
+    export const APPLY_STASH = {
+        id: 'git.stash.apply',
+        category: 'Git',
+        label: 'Apply Stash...'
+    };
+    export const APPLY_LATEST_STASH = {
+        id: 'git.stash.apply.latest',
+        category: 'Git',
+        label: 'Apply Latest Stash'
+    };
+    export const POP_STASH = {
+        id: 'git.stash.pop',
+        category: 'Git',
+        label: 'Pop Stash...'
+    };
+    export const POP_LATEST_STASH = {
+        id: 'git.stash.pop.latest',
+        category: 'Git',
+        label: 'Pop Latest Stash'
+    };
+    export const DROP_STASH = {
+        id: 'git.stash.drop',
+        category: 'Git',
+        label: 'Drop Stash...'
     };
 }
 
@@ -184,7 +222,7 @@ export class GitViewContribution extends AbstractViewContribution<GitWidget>
 
     registerMenus(menus: MenuModelRegistry): void {
         super.registerMenus(menus);
-        [GIT_COMMANDS.FETCH, GIT_COMMANDS.PULL, GIT_COMMANDS.PUSH, GIT_COMMANDS.MERGE].forEach(command =>
+        [GIT_COMMANDS.FETCH, GIT_COMMANDS.PULL_DEFAULT, GIT_COMMANDS.PULL, GIT_COMMANDS.PUSH_DEFAULT, GIT_COMMANDS.PUSH, GIT_COMMANDS.MERGE].forEach(command =>
             menus.registerMenuAction(GitWidget.ContextMenu.OTHER_GROUP, {
                 commandId: command.id,
                 label: command.label.slice('Git: '.length)
@@ -216,6 +254,14 @@ export class GitViewContribution extends AbstractViewContribution<GitWidget>
         menus.registerMenuAction(EditorContextMenu.NAVIGATION, {
             commandId: GIT_COMMANDS.OPEN_CHANGES.id
         });
+        [GIT_COMMANDS.STASH, GIT_COMMANDS.APPLY_STASH,
+        GIT_COMMANDS.APPLY_LATEST_STASH, GIT_COMMANDS.POP_STASH,
+        GIT_COMMANDS.POP_LATEST_STASH, GIT_COMMANDS.DROP_STASH].forEach(command =>
+            menus.registerMenuAction(GitWidget.ContextMenu.STASH, {
+                commandId: command.id,
+                label: command.label
+            })
+        );
     }
 
     registerCommands(registry: CommandRegistry): void {
@@ -224,8 +270,16 @@ export class GitViewContribution extends AbstractViewContribution<GitWidget>
             execute: () => this.quickOpenService.fetch(),
             isEnabled: () => !!this.repositoryTracker.selectedRepository
         });
+        registry.registerCommand(GIT_COMMANDS.PULL_DEFAULT, {
+            execute: () => this.quickOpenService.performDefaultGitAction(GitAction.PULL),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository
+        });
         registry.registerCommand(GIT_COMMANDS.PULL, {
             execute: () => this.quickOpenService.pull(),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository
+        });
+        registry.registerCommand(GIT_COMMANDS.PUSH_DEFAULT, {
+            execute: () => this.quickOpenService.performDefaultGitAction(GitAction.PUSH),
             isEnabled: () => !!this.repositoryTracker.selectedRepository
         });
         registry.registerCommand(GIT_COMMANDS.PUSH, {
@@ -324,6 +378,32 @@ export class GitViewContribution extends AbstractViewContribution<GitWidget>
                 }
                 return this.quickOpenService.clone(url, folder, branch);
             }
+        });
+        registry.registerCommand(GIT_COMMANDS.STASH, {
+            execute: () => this.quickOpenService.stash(),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository &&
+                !!this.repositoryTracker.selectedRepositoryStatus &&
+                this.repositoryTracker.selectedRepositoryStatus.changes.length > 0
+        });
+        registry.registerCommand(GIT_COMMANDS.APPLY_STASH, {
+            execute: () => this.quickOpenService.applyStash(),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository
+        });
+        registry.registerCommand(GIT_COMMANDS.APPLY_LATEST_STASH, {
+            execute: () => this.quickOpenService.applyLatestStash(),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository
+        });
+        registry.registerCommand(GIT_COMMANDS.POP_STASH, {
+            execute: () => this.quickOpenService.popStash(),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository
+        });
+        registry.registerCommand(GIT_COMMANDS.POP_LATEST_STASH, {
+            execute: () => this.quickOpenService.popLatestStash(),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository
+        });
+        registry.registerCommand(GIT_COMMANDS.DROP_STASH, {
+            execute: () => this.quickOpenService.dropStash(),
+            isEnabled: () => !!this.repositoryTracker.selectedRepository
         });
     }
 

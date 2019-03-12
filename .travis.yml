@@ -55,11 +55,14 @@ cache:
   - packages/terminal/node_modules
   - packages/textmate-grammars/node_modules
   - packages/tslint/node_modules
+  - packages/typehierarchy/node_modules
   - packages/typescript/node_modules
   - packages/userstorage/node_modules
   - packages/variable-resolver/node_modules
   - packages/workspace/node_modules
 # end_cache_directories
+  - packages/java-debug/download
+  - packages/debug-nodejs/download
 branches:
   only:
   - master
@@ -80,10 +83,13 @@ before_script:
   - export DISPLAY=:99.0; sh -e /etc/init.d/xvfb start ;
   - google-chrome-stable --headless --disable-gpu --remote-debugging-port=9222 http://localhost \&  ;
 before_install:
-  - curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version 1.7.0
+  - curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version 1.13.0
   - export PATH=$HOME/.yarn/bin:$PATH ;
 install: yarn && scripts/check_git_status.sh
-script: travis_retry yarn test ;
+script:
+  - travis_retry yarn test:theia ;
+  - travis_retry yarn test:electron ;
+  - travis_retry yarn test:browser ;
 notifications:
   webhooks:
     urls:
@@ -101,7 +107,8 @@ jobs:
   - os: osx
     env: CXX=c++
     before_script: skip
-    script: travis_retry yarn test:theia ;
+    script:
+      - travis_retry yarn test:theia ;
   - stage: deploy
     if: NOT type IN (cron, pull_request)
     os: linux

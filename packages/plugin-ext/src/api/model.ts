@@ -93,6 +93,18 @@ export interface FileChangeEvent {
     type: FileChangeEventType
 }
 
+export interface FileMoveEvent {
+    subscriberId: string,
+    oldUri: UriComponents,
+    newUri: UriComponents
+}
+
+export interface FileWillMoveEvent {
+    subscriberId: string,
+    oldUri: UriComponents,
+    newUri: UriComponents
+}
+
 export type FileChangeEventType = 'created' | 'updated' | 'deleted';
 
 export enum CompletionTriggerKind {
@@ -197,7 +209,7 @@ export interface MarkerData {
 }
 
 export interface RelatedInformation {
-    resource: UriComponents;
+    resource: string;
     message: string;
     startLineNumber: number;
     startColumn: number;
@@ -465,4 +477,18 @@ export interface ColorInformation {
 export interface DocumentColorProvider {
     provideDocumentColors(model: monaco.editor.ITextModel): PromiseLike<ColorInformation[]>;
     provideColorPresentations(model: monaco.editor.ITextModel, colorInfo: ColorInformation): PromiseLike<ColorPresentation[]>;
+}
+
+export interface Rejection {
+    rejectReason?: string;
+}
+
+export interface RenameLocation {
+    range: Range;
+    text: string;
+}
+
+export interface RenameProvider {
+    provideRenameEdits(model: monaco.editor.ITextModel, position: Position, newName: string): PromiseLike<WorkspaceEdit & Rejection>;
+    resolveRenameLocation?(model: monaco.editor.ITextModel, position: Position): PromiseLike<RenameLocation & Rejection>;
 }

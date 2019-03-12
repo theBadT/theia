@@ -157,6 +157,9 @@ export class FileSystemNode implements FileSystem {
     }
 
     async move(sourceUri: string, targetUri: string, options?: FileMoveOptions): Promise<FileStat> {
+        if (this.client) {
+            this.client.onWillMove(sourceUri, targetUri);
+        }
         const result = await this.doMove(sourceUri, targetUri, options);
         if (this.client) {
             this.client.onDidMove(sourceUri, targetUri);
@@ -259,7 +262,10 @@ export class FileSystemNode implements FileSystem {
         const _uri = new URI(uri);
         const stat = await this.doGetStat(_uri, 0);
         if (stat) {
-            throw FileSystemError.FileExists(uri, 'Error occurred while creating the directory.');
+            if (stat.isDirectory) {
+                return stat;
+            }
+            throw FileSystemError.FileExists(uri, 'Error occurred while creating the directory: path is a file.');
         }
         await fs.mkdirs(FileUri.fsPath(_uri));
         const newStat = await this.doGetStat(_uri, 1);

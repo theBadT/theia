@@ -20,7 +20,7 @@ import { injectable, optional, multiInject, inject } from 'inversify';
 import {
     PluginDeployerResolver, PluginDeployerFileHandler, PluginDeployerDirectoryHandler,
     PluginDeployerEntry, PluginDeployer, PluginDeployerResolverInit, PluginDeployerFileHandlerContext,
-    PluginDeployerDirectoryHandlerContext, HostedPluginServer, PluginDeployerEntryType,
+    PluginDeployerDirectoryHandlerContext, PluginDeployerEntryType, PluginDeployerHandler,
 } from '../../common/plugin-protocol';
 import { PluginDeployerEntryImpl } from './plugin-deployer-entry-impl';
 import { PluginDeployerResolverContextImpl, PluginDeployerResolverInitImpl } from './plugin-deployer-resolver-context-impl';
@@ -28,6 +28,7 @@ import { ProxyPluginDeployerEntry } from './plugin-deployer-proxy-entry-impl';
 import { PluginDeployerFileHandlerContextImpl } from './plugin-deployer-file-handler-context-impl';
 import { PluginDeployerDirectoryHandlerContextImpl } from './plugin-deployer-directory-handler-context-impl';
 import { ILogger } from '@theia/core';
+import { PluginCliContribution } from './plugin-cli-contribution';
 
 @injectable()
 export class PluginDeployerImpl implements PluginDeployer {
@@ -35,8 +36,11 @@ export class PluginDeployerImpl implements PluginDeployer {
     @inject(ILogger)
     protected readonly logger: ILogger;
 
-    @inject(HostedPluginServer)
-    protected readonly hostedPluginServer: HostedPluginServer;
+    @inject(PluginDeployerHandler)
+    protected readonly hostedPluginServer: PluginDeployerHandler;
+
+    @inject(PluginCliContribution)
+    protected readonly cliContribution: PluginCliContribution;
 
     /**
      * Deployer entries.
@@ -86,14 +90,17 @@ export class PluginDeployerImpl implements PluginDeployer {
         // check THEIA_DEFAULT_PLUGINS or THEIA_PLUGINS env var
         const defaultPluginsValue = process.env.THEIA_DEFAULT_PLUGINS || undefined;
         const pluginsValue = process.env.THEIA_PLUGINS || undefined;
+        // check the `--plugins` CLI option
+        const defaultPluginsValueViaCli = this.cliContribution.localDir();
 
         this.logger.debug('Found the list of default plugins ID on env:', defaultPluginsValue);
         this.logger.debug('Found the list of plugins ID on env:', pluginsValue);
+        this.logger.debug('Found the list of default plugins ID from CLI:', defaultPluginsValueViaCli);
 
         // transform it to array
         const defaultPluginIdList = defaultPluginsValue ? defaultPluginsValue.split(',') : [];
         const pluginIdList = pluginsValue ? pluginsValue.split(',') : [];
-        const pluginsList = defaultPluginIdList.concat(pluginIdList);
+        const pluginsList = defaultPluginIdList.concat(pluginIdList).concat(defaultPluginsValueViaCli ? defaultPluginsValueViaCli.split(',') : []);
 
         // skip if no plug-ins
         if (pluginsList.length === 0) {
@@ -130,7 +137,7 @@ export class PluginDeployerImpl implements PluginDeployer {
     /**
      * deploy all plugins that have been accepted
      */
-    public async deployPlugins(): Promise<any> {
+    async deployPlugins(): Promise<any> {
         const acceptedPlugins = this.pluginDeployerEntries.filter(pluginDeployerEntry => pluginDeployerEntry.isAccepted());
         const acceptedFrontendPlugins = this.pluginDeployerEntries.filter(pluginDeployerEntry => pluginDeployerEntry.isAccepted(PluginDeployerEntryType.FRONTEND));
         const acceptedBackendPlugins = this.pluginDeployerEntries.filter(pluginDeployerEntry => pluginDeployerEntry.isAccepted(PluginDeployerEntryType.BACKEND));
@@ -147,11 +154,11 @@ export class PluginDeployerImpl implements PluginDeployer {
         const pluginPaths = acceptedBackendPlugins.map(pluginEntry => pluginEntry.path());
         this.logger.debug('local path to deploy on remote instance', pluginPaths);
 
-        // start the backend plugins
-        this.hostedPluginServer.deployBackendPlugins(acceptedBackendPlugins);
-        this.hostedPluginServer.deployFrontendPlugins(acceptedFrontendPlugins);
-        return Promise.resolve();
-
+        await Promise.all([
+            // start the backend plugins
+            this.hostedPluginServer.deployBackendPlugins(acceptedBackendPlugins),
+            this.hostedPluginServer.deployFrontendPlugins(acceptedFrontendPlugins)
+        ]);
     }
 
     /**
@@ -191,7 +198,7 @@ export class PluginDeployerImpl implements PluginDeployer {
             });
 
         });
-        return await Promise.all(waitPromises);
+        return Promise.all(waitPromises);
     }
 
     /**

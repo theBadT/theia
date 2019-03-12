@@ -39,7 +39,7 @@ export class TaskServerImpl implements TaskServer {
         // do nothing
     }
 
-    async getTasks(context?: string | undefined): Promise<TaskInfo[]> {
+    async getTasks(context?: string): Promise<TaskInfo[]> {
         const taskInfo: TaskInfo[] = [];
 
         const tasks = this.taskManager.getTasks(context);
@@ -65,6 +65,10 @@ export class TaskServerImpl implements TaskServer {
         const taskInfo = await task.getRuntimeInfo();
         this.fireTaskCreatedEvent(taskInfo);
         return taskInfo;
+    }
+
+    async getRegisteredTaskTypes(): Promise<string[]> {
+        return this.runnerRegistry.getRunnerTypes();
     }
 
     protected fireTaskExitedEvent(event: TaskExitedEvent) {

@@ -17,9 +17,11 @@
 import { EditorManager } from './editor-manager';
 import { TextEditor } from './editor';
 import { injectable, inject } from 'inversify';
+import URI from '@theia/core/lib/common/uri';
 import { StatusBarAlignment, StatusBar } from '@theia/core/lib/browser/status-bar/status-bar';
-import { FrontendApplicationContribution } from '@theia/core/lib/browser';
+import { FrontendApplicationContribution, DiffUris } from '@theia/core/lib/browser';
 import { Languages } from '@theia/languages/lib/browser';
+import { ContextKeyService } from '@theia/core/lib/browser/context-key-service';
 import { DisposableCollection } from '@theia/core';
 import { EditorCommands } from './editor-command';
 
@@ -30,9 +32,61 @@ export class EditorContribution implements FrontendApplicationContribution {
     @inject(EditorManager) protected readonly editorManager: EditorManager;
     @inject(Languages) protected readonly languages: Languages;
 
+    @inject(ContextKeyService)
+    protected readonly contextKeyService: ContextKeyService;
+
     onStart(): void {
+        this.initResourceContextKeys();
+        this.initEditorContextKeys();
+
         this.updateStatusBar();
         this.editorManager.onCurrentEditorChanged(() => this.updateStatusBar());
+    }
+
+    protected initResourceContextKeys(): void {
+        const resourceSchemeKey = this.contextKeyService.createKey<string>('resourceScheme', undefined);
+        const resourceFileName = this.contextKeyService.createKey<string>('resourceFilename', undefined);
+        const resourceExtname = this.contextKeyService.createKey<string>('resourceExtname', undefined);
+        const resourceLangId = this.contextKeyService.createKey<string>('resourceLangId', undefined);
+        const updateContextKeys = () => {
+            const editor = this.editorManager.currentEditor;
+            const resourceUri = editor && editor.getResourceUri();
+            resourceSchemeKey.set(resourceUri && resourceUri.scheme);
+            resourceFileName.set(resourceUri && resourceUri.path.base);
+            resourceExtname.set(resourceUri && resourceUri.path.ext);
+            resourceLangId.set(this.getLanguageId(resourceUri));
+        };
+        updateContextKeys();
+        this.editorManager.onCurrentEditorChanged(updateContextKeys);
+    }
+    protected getLanguageId(uri: URI | undefined): string | undefined {
+        const { languages } = this.languages;
+        if (uri && languages) {
+            for (const language of languages) {
+                if (language.extensions.has(uri.path.ext)) {
+                    return language.id;
+                }
+            }
+        }
+        return undefined;
+    }
+
+    protected initEditorContextKeys(): void {
+        const editorIsOpen = this.contextKeyService.createKey<boolean>('editorIsOpen', false);
+        const textCompareEditorVisible = this.contextKeyService.createKey<boolean>('textCompareEditorVisible', false);
+        const updateContextKeys = () => {
+            const widgets = this.editorManager.all;
+            editorIsOpen.set(!!widgets.length);
+            textCompareEditorVisible.set(widgets.some(widget => DiffUris.isDiffUri(widget.editor.uri)));
+        };
+        updateContextKeys();
+        for (const widget of this.editorManager.all) {
+            widget.disposed.connect(updateContextKeys);
+        }
+        this.editorManager.onCreated(widget => {
+            updateContextKeys();
+            widget.disposed.connect(updateContextKeys);
+        });
     }
 
     protected readonly toDisposeOnCurrentEditorChanged = new DisposableCollection();

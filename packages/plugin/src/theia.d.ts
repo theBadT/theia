@@ -48,6 +48,14 @@ declare module '@theia/plugin' {
          * dispose all provided disposables.
          */
         static from(...disposableLikes: { dispose: () => any }[]): Disposable;
+
+        /**
+        * Creates a new Disposable calling the provided function
+        * on dispose.
+        * @param callOnDispose Function that disposes something.
+        */
+        constructor(callOnDispose: Function);
+
     }
 
     export type PluginType = 'frontend' | 'backend';
@@ -149,12 +157,13 @@ declare module '@theia/plugin' {
         export let all: Plugin<any>[];
     }
 
+
     /**
-     * A command is a unique identifier of a function
-     * which can be executed by a user via a keyboard shortcut,
-     * a menu action or directly.
-     */
-    export interface Command {
+ * A command is a unique identifier of a function
+ * which can be executed by a user via a keyboard shortcut,
+ * a menu action or directly.
+ */
+    export interface CommandDescription {
         /**
          * A unique identifier of this command.
          */
@@ -164,18 +173,44 @@ declare module '@theia/plugin' {
          */
         label?: string;
         /**
-         * A tooltip for for command, when represented in the UI.
-         */
+          * A tooltip for for command, when represented in the UI.
+          */
         tooltip?: string;
         /**
          * An icon class of this command.
          */
         iconClass?: string;
+    }
+    /**
+     * Command represents a particular invocation of a registered command.
+     */
+    export interface Command {
+        /**
+         * The identifier of the actual command handler.
+         */
+        command?: string;
+        /**
+        * Title of the command invocation, like "Add local varible 'foo'".
+        */
+        title?: string;
+        /**
+          * A tooltip for for command, when represented in the UI.
+          */
+        tooltip?: string;
         /**
          * Arguments that the command handler should be
          * invoked with.
          */
         arguments?: any[];
+
+        /**
+         * @deprecated use command instead
+         */
+        id?: string;
+        /**
+         * @deprecated use title instead
+         */
+        label?: string;
     }
 
     /**
@@ -193,7 +228,7 @@ declare module '@theia/plugin' {
          */
         readonly character: number;
 
-        constructor(line: number, char: number);
+        constructor(line: number, character: number);
 
         /**
          * Check if this position is before `other`.
@@ -289,7 +324,7 @@ declare module '@theia/plugin' {
     }
 
     /**
-     * Pair if two positions.
+     * Pair of two positions.
      */
     export class Range {
         /**
@@ -325,11 +360,11 @@ declare module '@theia/plugin' {
          * Create a new position from coordinates.
          *
          * @param startLine a zero based line value
-         * @param startChar a zero based character value
+         * @param startCharacter a zero based character value
          * @param endLine a zero based line value
-         * @param endChar a zero based character value
+         * @param endCharacter a zero based character value
          */
-        constructor(startLine: number, startChar: number, endLine: number, endChar: number);
+        constructor(startLine: number, startCharacter: number, endLine: number, endCharacter: number);
 
         /**
          * Check if a position or a range is in this range.
@@ -405,11 +440,11 @@ declare module '@theia/plugin' {
          * Create a selection from coordinates.
          *
          * @param anchorLine a zero based line value
-         * @param anchorChar a zero based character value
+         * @param anchorCharacter a zero based character value
          * @param activeLine a zero based line value
-         * @param activeChar a zero based character value
+         * @param activeCharacter a zero based character value
          */
-        constructor(anchorLine: number, anchorChar: number, activeLine: number, activeChar: number);
+        constructor(anchorLine: number, anchorCharacter: number, activeLine: number, activeCharacter: number);
     }
 
     /**
@@ -1066,7 +1101,7 @@ declare module '@theia/plugin' {
          * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
          * @return A promise that resolves with a value indicating if the edits could be applied.
          */
-        edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Promise<boolean>;
+        edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): PromiseLike<boolean>;
 
         /**
          * Insert a [snippet](#SnippetString) and put the editor into snippet mode. "Snippet mode"
@@ -1079,7 +1114,7 @@ declare module '@theia/plugin' {
          * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
          * that the snippet is completely filled-in or accepted.
          */
-        insertSnippet(snippet: SnippetString, location?: Position | Range | Position[] | Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Promise<boolean>;
+        insertSnippet(snippet: SnippetString, location?: Position | Range | Position[] | Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): PromiseLike<boolean>;
 
         /**
          * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -1852,12 +1887,12 @@ declare module '@theia/plugin' {
         /**
          * A flag to include the description when filtering
          */
-        machOnDescription?: boolean;
+        matchOnDescription?: boolean;
 
         /**
          *  A flag to include the detail when filtering
          */
-        machOnDetail?: boolean;
+        matchOnDetail?: boolean;
 
         /**
          * The place holder in input box
@@ -1977,23 +2012,33 @@ declare module '@theia/plugin' {
          *
          * Throw if a command is already registered for the given command identifier.
          */
-        export function registerCommand(command: Command, handler?: (...args: any[]) => any): Disposable;
+        export function registerCommand(command: CommandDescription, handler?: (...args: any[]) => any, thisArg?: any): Disposable;
 
         /**
          * Register the given handler for the given command identifier.
          *
          * @param commandId a given command id
          * @param handler a command handler
+         *
+         * Throw if a handler for the given command identifier is already registered.
          */
-        export function registerHandler(commandId: string, handler: (...args: any[]) => any): Disposable;
+        export function registerHandler(commandId: string, handler: (...args: any[]) => any, thisArg?: any): Disposable;
 
         /**
-         * Register a text editor command which can execute only if active editor present and command has access to the active editor
+         * Registers a text editor command that can be invoked via a keyboard shortcut,
+         * a menu item, an action, or directly.
          *
-         * @param command a command description
-         * @param handler a command handler with access to text editor
+         * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
+         * they only execute when there is an active editor when the command is called. Also, the
+         * command handler of an editor command has access to the active editor and to an
+         * [edit](#TextEditorEdit)-builder.
+         *
+         * @param command A unique identifier for the command.
+         * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
+         * @param thisArg The `this` context used when invoking the handler function.
+         * @return Disposable which unregisters this command on disposal.
          */
-        export function registerTextEditorCommand(command: Command, handler: (textEditor: TextEditor, edit: TextEditorEdit, ...arg: any[]) => void): Disposable;
+        export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit, ...args: any[]) => void, thisArg?: any): Disposable;
 
         /**
          * Execute the active handler for the given command and arguments.
@@ -2001,6 +2046,15 @@ declare module '@theia/plugin' {
          * Reject if a command cannot be executed.
          */
         export function executeCommand<T>(commandId: string, ...args: any[]): PromiseLike<T | undefined>;
+
+        /**
+         * Retrieve the list of all available commands. Commands starting an underscore are
+         * treated as internal commands.
+         *
+         * @param filterInternal Set `true` to not see internal commands (starting with an underscore)
+         * @return Thenable that resolves to a list of command ids.
+         */
+        export function getCommands(filterInternal?: boolean): PromiseLike<string[]>;
     }
 
     /**
@@ -2516,6 +2570,36 @@ declare module '@theia/plugin' {
     }
 
     /**
+     * The areas of the application shell where webview panel can reside.
+     */
+    export enum WebviewPanelTargetArea {
+        Main = 'main',
+        Left = 'left',
+        Right = 'right',
+        Bottom = 'bottom'
+    }
+
+    /**
+     * Settings to determine where webview panel will be reside
+     */
+    export interface WebviewPanelShowOptions {
+        /**
+         * Target area where webview panel will be resided. Shows in the 'WebviewPanelTargetArea.Main' area if undefined.
+         */
+        area?: WebviewPanelTargetArea;
+
+        /**
+         * Editor View column to show the panel in. Shows in the current `viewColumn` if undefined.
+         */
+        viewColumn?: number;
+
+        /**
+         * When `true`, the webview will not take focus.
+         */
+        preserveFocus?: boolean;
+    }
+
+    /**
      * A panel that contains a webview.
      */
     interface WebviewPanel {
@@ -2544,6 +2628,10 @@ declare module '@theia/plugin' {
          */
         readonly options: WebviewPanelOptions;
 
+        /**
+         * Settings to determine where webview panel will be reside
+         */
+        readonly showOptions?: WebviewPanelShowOptions;
         /**
          * Editor position of the panel. This property is only set if the webview is in
          * one of the editor view columns.
@@ -2576,15 +2664,16 @@ declare module '@theia/plugin' {
         readonly onDidDispose: Event<void>;
 
         /**
-         * Show the webview panel in a given column.
+         * Show the webview panel according to a given options.
          *
          * A webview panel may only show in a single column at a time. If it is already showing, this
          * method moves it to a new column.
          *
+         * @param area target area where webview panel will be resided. Shows in the 'WebviewPanelTargetArea.Main' area if undefined.
          * @param viewColumn View column to show the panel in. Shows in the current `viewColumn` if undefined.
          * @param preserveFocus When `true`, the webview will not take focus.
          */
-        reveal(viewColumn?: ViewColumn, preserveFocus?: boolean): void;
+        reveal(area?: WebviewPanelTargetArea, viewColumn?: ViewColumn, preserveFocus?: boolean): void;
 
         /**
          * Dispose of the webview panel.
@@ -2658,6 +2747,12 @@ declare module '@theia/plugin' {
     export namespace window {
 
         /**
+         * The currently active terminal or undefined. The active terminal is the one
+         * that currently has focus or most recently had focus.
+         */
+        export let activeTerminal: Terminal | undefined;
+
+        /**
          * The currently active editor or `undefined`. The active editor is the one
          * that currently has focus or, when none has focus, the one that has changed
          * input most recently.
@@ -2665,9 +2760,20 @@ declare module '@theia/plugin' {
         export let activeTextEditor: TextEditor | undefined;
 
         /**
+         * The currently opened terminals or an empty array.
+         */
+        export let terminals: ReadonlyArray<Terminal>;
+
+        /**
          * The currently visible editors or an empty array.
          */
         export let visibleTextEditors: TextEditor[];
+
+        /**
+         * An [event](#Event) which fires when the [active terminal](#window.activeTerminal) has changed.
+         * *Note* that the event also fires when the active terminal changes to `undefined`.
+         */
+        export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
 
         /**
          * An [event](#Event) which fires when the [active editor](#window.activeTextEditor)
@@ -2804,7 +2910,7 @@ declare module '@theia/plugin' {
          * @param items A set of items that will be rendered as actions in the message.
          * @return A promise that resolves to the selected item or `undefined` when being dismissed.
          */
-        export function showInformationMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
+        export function showInformationMessage<T extends MessageItem>(message: string, ...items: T[]): PromiseLike<T | undefined>;
 
         /**
          * Show an information message.
@@ -2823,7 +2929,7 @@ declare module '@theia/plugin' {
          * @param items A set of items that will be rendered as actions in the message.
          * @return A promise that resolves to the selected item or `undefined` when being dismissed.
          */
-        export function showWarningMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
+        export function showWarningMessage(message: string, ...items: string[]): PromiseLike<string | undefined>;
 
         /**
          * Show a warning message.
@@ -2861,7 +2967,7 @@ declare module '@theia/plugin' {
          * @param items A set of items that will be rendered as actions in the message.
          * @return A promise that resolves to the selected item or `undefined` when being dismissed.
          */
-        export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): PromiseLike<T | undefined>;
+        export function showErrorMessage(message: string, ...items: string[]): PromiseLike<string | undefined>;
 
         /**
          * Show an error message.
@@ -2928,12 +3034,12 @@ declare module '@theia/plugin' {
          *
          * @param viewType Identifies the type of the webview panel.
          * @param title Title of the panel.
-         * @param showOptions Where to show the webview in the editor. If preserveFocus is set, the new webview will not take focus.
+         * @param showOptions where webview panel will be reside. If preserveFocus is set, the new webview will not take focus.
          * @param options Settings for the new panel.
          *
          * @return New webview panel.
          */
-        export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+        export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | WebviewPanelShowOptions, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
         /**
          * Registers a webview panel serializer.
@@ -3025,6 +3131,12 @@ declare module '@theia/plugin' {
         export const onDidCloseTerminal: Event<Terminal>;
 
         /**
+         * An [event](#Event) which fires when a terminal has been created,
+         * either through the createTerminal API or commands.
+         */
+        export const onDidOpenTerminal: Event<Terminal>;
+
+        /**
          * Create new terminal with predefined options.
          * @param - terminal options.
          */
@@ -3047,7 +3159,7 @@ declare module '@theia/plugin' {
          * @param options Options object to provide [TreeDataProvider](#TreeDataProvider) for the view.
          * @returns a [TreeView](#TreeView).
          */
-        export function createTreeView<T>(viewId: string, options: { treeDataProvider: TreeDataProvider<T> }): TreeView<T>;
+        export function createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>;
 
         /**
          * Show progress in the editor. Progress is shown while running the given callback
@@ -3123,6 +3235,22 @@ declare module '@theia/plugin' {
     }
 
     /**
+     * Options for creating a [TreeView](#TreeView)
+     */
+    export interface TreeViewOptions<T> {
+
+        /**
+         * A data provider that provides tree data.
+         */
+        treeDataProvider: TreeDataProvider<T>;
+
+        /**
+         * Whether to show collapse all action or not.
+         */
+        showCollapseAll?: boolean;
+    }
+
+    /**
      * The event that is fired when an element in the [TreeView](#TreeView) is expanded or collapsed
      */
     export interface TreeViewExpansionEvent<T> {
@@ -3161,7 +3289,7 @@ declare module '@theia/plugin' {
          *
          * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
          */
-        reveal(element: T, options?: { select?: boolean }): PromiseLike<void>;
+        reveal(element: T, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): PromiseLike<void>;
     }
 
     /**
@@ -3420,11 +3548,15 @@ declare module '@theia/plugin' {
         /**
          * Global configuration
          */
-        User = 0,
+        Global = 1,
         /**
          * Workspace configuration
          */
-        Workspace = 1
+        Workspace = 2,
+        /**
+         * Workspace folder configuration
+         */
+        WorkspaceFolder = 3
     }
 
     /**
@@ -3527,6 +3659,60 @@ declare module '@theia/plugin' {
          * The size in bytes.
          */
         size: number;
+    }
+
+	/**
+	 * A type that filesystem providers should use to signal errors.
+	 *
+	 * This class has factory methods for common error-cases, like `EntryNotFound` when
+	 * a file or folder doesn't exist, use them like so: `throw vscode.FileSystemError.EntryNotFound(someUri);`
+	 */
+    export class FileSystemError extends Error {
+
+		/**
+		 * Create an error to signal that a file or folder wasn't found.
+		 * @param messageOrUri Message or uri.
+		 */
+        static FileNotFound(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that a file or folder already exists, e.g. when
+		 * creating but not overwriting a file.
+		 * @param messageOrUri Message or uri.
+		 */
+        static FileExists(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that a file is not a folder.
+		 * @param messageOrUri Message or uri.
+		 */
+        static FileNotADirectory(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that a file is a folder.
+		 * @param messageOrUri Message or uri.
+		 */
+        static FileIsADirectory(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that an operation lacks required permissions.
+		 * @param messageOrUri Message or uri.
+		 */
+        static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that the file system is unavailable or too busy to
+		 * complete a request.
+		 * @param messageOrUri Message or uri.
+		 */
+        static Unavailable(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Creates a new filesystem error.
+		 *
+		 * @param messageOrUri Message or uri.
+		 */
+        constructor(messageOrUri?: string | Uri);
     }
 
     /**
@@ -3702,6 +3888,17 @@ declare module '@theia/plugin' {
      * the editor-process so that they should be always used instead of nodejs-equivalents.
      */
     export namespace workspace {
+
+        /**
+         * ~~The folder that is open in the editor. `undefined` when no folder
+         * has been opened.~~
+         *
+         * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
+         *
+         * @readonly
+         */
+        export let rootPath: string | undefined;
+
         /**
          * List of workspace folders or `undefined` when no folder is open.
          * *Note* that the first entry corresponds to the value of `rootPath`.
@@ -3771,6 +3968,21 @@ declare module '@theia/plugin' {
         export const onDidChangeTextDocument: Event<TextDocumentChangeEvent>;
 
         /**
+         * An event that is emitted when a [text document](#TextDocument) will be saved to disk.
+         *
+         * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrity the editor
+         * might save without firing this event. For instance when shutting down with dirty files.
+         *
+         * *Note 2:* Subscribers are called sequentially and they can [delay](#TextDocumentWillSaveEvent.waitUntil) saving
+         * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
+         *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
+         *  * listeners that take a long time or produce errors frequently will not be called anymore
+         *
+         * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
+         */
+        export const onWillSaveTextDocument: Event<TextDocumentWillSaveEvent>;
+
+        /**
          * An event that is emitted when a [text document](#TextDocument) is saved to disk.
          */
         export const onDidSaveTextDocument: Event<TextDocument>;
@@ -3792,7 +4004,7 @@ declare module '@theia/plugin' {
          * @param uri Identifies the resource to open.
          * @return A promise that resolves to a [document](#TextDocument).
          */
-        export function openTextDocument(uri: Uri): Promise<TextDocument | undefined>;
+        export function openTextDocument(uri: Uri): PromiseLike<TextDocument | undefined>;
 
         /**
          * A short-hand for `openTextDocument(Uri.file(fileName))`.
@@ -3801,7 +4013,7 @@ declare module '@theia/plugin' {
          * @param fileName A name of a file on disk.
          * @return A promise that resolves to a [document](#TextDocument).
          */
-        export function openTextDocument(fileName: string): Promise<TextDocument | undefined>;
+        export function openTextDocument(fileName: string): PromiseLike<TextDocument | undefined>;
 
         /**
          * Opens an untitled text document. The editor will prompt the user for a file
@@ -3811,7 +4023,7 @@ declare module '@theia/plugin' {
          * @param options Options to control how the document will be created.
          * @return A promise that resolves to a [document](#TextDocument).
          */
-        export function openTextDocument(options?: { language?: string; content?: string; }): Promise<TextDocument | undefined>;
+        export function openTextDocument(options?: { language?: string; content?: string; }): PromiseLike<TextDocument | undefined>;
 
         /**
          * Get a workspace configuration object.
@@ -3870,27 +4082,27 @@ declare module '@theia/plugin' {
          * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
          * [workspace folders](#workspace.workspaceFolders) are opened.
          */
-        export function findFiles(include: GlobPattern, exclude?: GlobPattern | undefined, maxResults?: number, token?: CancellationToken): PromiseLike<Uri[]>;
+        export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): PromiseLike<Uri[]>;
 
         /**
-		 * Make changes to one or many resources or create, delete, and rename resources as defined by the given
-		 * [workspace edit](#WorkspaceEdit).
-		 *
-		 * All changes of a workspace edit are applied in the same order in which they have been added. If
-		 * multiple textual inserts are made at the same position, these strings appear in the resulting text
-		 * in the order the 'inserts' were made. Invalid sequences like 'delete file a' -> 'insert text in file a'
-		 * cause failure of the operation.
-		 *
-		 * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
-		 * A workspace edit with resource creations or deletions aborts the operation, e.g. consective edits will
-		 * not be attempted, when a single edit fails.
-		 *
-		 * @param edit A workspace edit.
-		 * @return A thenable that resolves when the edit could be applied.
-		 */
-		export function applyEdit(edit: WorkspaceEdit): PromiseLike<boolean>;
-        
-        
+         * Make changes to one or many resources or create, delete, and rename resources as defined by the given
+         * [workspace edit](#WorkspaceEdit).
+         *
+         * All changes of a workspace edit are applied in the same order in which they have been added. If
+         * multiple textual inserts are made at the same position, these strings appear in the resulting text
+         * in the order the 'inserts' were made. Invalid sequences like 'delete file a' -> 'insert text in file a'
+         * cause failure of the operation.
+         *
+         * When applying a workspace edit that consists only of text edits an 'all-or-nothing'-strategy is used.
+         * A workspace edit with resource creations or deletions aborts the operation, e.g. consective edits will
+         * not be attempted, when a single edit fails.
+         *
+         * @param edit A workspace edit.
+         * @return A thenable that resolves when the edit could be applied.
+         */
+        export function applyEdit(edit: WorkspaceEdit): PromiseLike<boolean>;
+
+
         /**
          * Register a filesystem provider for a given scheme, e.g. `ftp`.
          *
@@ -3907,12 +4119,11 @@ declare module '@theia/plugin' {
         /**
          * Returns the [workspace folder](#WorkspaceFolder) that contains a given uri.
          * * returns `undefined` when the given uri doesn't match any workspace folder
-         * * returns the *input* when the given uri is a workspace folder itself
          *
          * @param uri An uri.
          * @return A workspace folder or `undefined`
          */
-        export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | Uri | undefined;
+        export function getWorkspaceFolder(uri: Uri): WorkspaceFolder | undefined;
 
         /**
          * Returns a path that is relative to the workspace folder or folders.
@@ -3927,6 +4138,17 @@ declare module '@theia/plugin' {
          * @return A path relative to the root or the input.
          */
         export function asRelativePath(pathOrUri: string | Uri, includeWorkspaceFolder?: boolean): string | undefined;
+
+        /**
+        * ~~Register a task provider.~~
+        *
+        * @deprecated Use the corresponding function on the `tasks` namespace instead
+        *
+        * @param type The task kind type this provider is registered for.
+        * @param provider A task provider.
+        * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+        */
+        export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
     }
 
     export namespace env {
@@ -4196,10 +4418,11 @@ declare module '@theia/plugin' {
         /**
          * Creates a new parameter information object.
          *
-         * @param label A label string.
+         * @param label A label string or inclusive start and exclusive end offsets within its containing signature label.
          * @param documentation A doc string.
          */
-        constructor(label: string, documentation?: string | MarkdownString);
+        constructor(label: string | [number, number], documentation?: string | MarkdownString);
+
     }
 
     /**
@@ -5756,6 +5979,39 @@ declare module '@theia/plugin' {
         resolveDocumentLink?(link: DocumentLink, token: CancellationToken | undefined): ProviderResult<DocumentLink>;
     }
 
+
+    /**
+    * The rename provider interface defines the contract between extensions and
+    * the [rename](https://code.visualstudio.com/docs/editor/editingevolved#_rename-symbol)-feature.
+    */
+    export interface RenameProvider {
+
+        /**
+        * Provide an edit that describes changes that have to be made to one
+        * or many resources to rename a symbol to a different name.
+        *
+        * @param document The document in which the command was invoked.
+        * @param position The position at which the command was invoked.
+        * @param newName The new name of the symbol. If the given name is not valid, the provider must return a rejected promise.
+        * @param token A cancellation token.
+        * @return A workspace edit or a thenable that resolves to such. The lack of a result can be
+        * signaled by returning `undefined` or `null`.
+        */
+        provideRenameEdits(document: TextDocument, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit>;
+
+        /**
+        * Optional function for resolving and validating a position *before* running rename. The result can
+        * be a range or a range and a placeholder text. The placeholder text should be the identifier of the symbol
+        * which is being renamed - when omitted the text in the returned range is used.
+        *
+        * @param document The document in which rename will be invoked.
+        * @param position The position at which rename will be invoked.
+        * @param token A cancellation token.
+        * @return The range or range and placeholder text of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
+        */
+        prepareRename?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
+    }
+
     export namespace languages {
         /**
          * Return the identifiers of all known languages.
@@ -6094,6 +6350,19 @@ declare module '@theia/plugin' {
         * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
         */
         export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;
+
+        /**
+        * Register a reference provider.
+        *
+        * Multiple providers can be registered for a language. In that case providers are sorted
+        * by their [score](#languages.match) and the best-matching provider is used. Failure
+        * of the selected provider will cause a failure of the whole operation.
+        *
+        * @param selector A selector that defines the documents this provider is applicable to.
+        * @param provider A rename provider.
+        * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+        */
+        export function registerRenameProvider(selector: DocumentSelector, provider: RenameProvider): Disposable;
     }
 
     /**
@@ -6917,6 +7186,18 @@ declare module '@theia/plugin' {
         execution: TaskExecution;
     }
 
+    /**
+     * An event signaling the end of an executed task.
+     *
+     * This interface is not intended to be implemented.
+     */
+    interface TaskEndEvent {
+        /**
+         * The task item representing the task that finished.
+         */
+        execution: TaskExecution;
+    }
+
     export namespace tasks {
 
         /**
@@ -6928,8 +7209,16 @@ declare module '@theia/plugin' {
          */
         export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
 
+        /**
+         * The currently active task executions or an empty array.
+         */
+        export const taskExecutions: ReadonlyArray<TaskExecution>;
+
         /** Fires when a task starts. */
         export const onDidStartTask: Event<TaskStartEvent>;
+
+        /** Fires when a task ends. */
+        export const onDidEndTask: Event<TaskEndEvent>;
     }
 
     /**

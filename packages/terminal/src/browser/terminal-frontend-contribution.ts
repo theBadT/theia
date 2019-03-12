@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { inject, injectable } from 'inversify';
+import { inject, injectable, postConstruct } from 'inversify';
 import {
     CommandContribution,
     Command,
@@ -22,11 +22,13 @@ import {
     MenuContribution,
     MenuModelRegistry,
     isOSX,
-    SelectionService
+    SelectionService,
+    Emitter, Event
 } from '@theia/core/lib/common';
+import { QuickPickService } from '@theia/core/lib/common/quick-pick-service';
 import {
     ApplicationShell, KeybindingContribution, KeyCode, Key,
-    KeyModifier, KeybindingRegistry, Widget, QuickPickService, LabelProvider
+    KeyModifier, KeybindingRegistry, Widget, LabelProvider, WidgetOpenerOptions
 } from '@theia/core/lib/browser';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
 import { WidgetManager } from '@theia/core/lib/browser';
@@ -39,12 +41,13 @@ import { FileSystem } from '@theia/filesystem/lib/common';
 import URI from '@theia/core/lib/common/uri';
 import { MAIN_MENU_BAR } from '@theia/core';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
+import { ContextKeyService } from '@theia/core/lib/browser/context-key-service';
 
 export namespace TerminalMenus {
     export const TERMINAL = [...MAIN_MENU_BAR, '7_terminal'];
     export const TERMINAL_NEW = [...TERMINAL, '1_terminal'];
     export const TERMINAL_TASKS = [...TERMINAL, '2_terminal'];
-    export const TERMINAL_NAVIGATOR_CONTEXT_MENU = ['navigator-context-menu', '4_new'];
+    export const TERMINAL_NAVIGATOR_CONTEXT_MENU = ['navigator-context-menu', 'navigation'];
 }
 
 export namespace TerminalCommands {
@@ -94,6 +97,58 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
 
     @inject(WorkspaceService)
     protected readonly workspaceService: WorkspaceService;
+
+    protected readonly onDidCreateTerminalEmitter = new Emitter<TerminalWidget>();
+    readonly onDidCreateTerminal: Event<TerminalWidget> = this.onDidCreateTerminalEmitter.event;
+
+    protected readonly onDidChangeCurrentTerminalEmitter = new Emitter<TerminalWidget | undefined>();
+    readonly onDidChangeCurrentTerminal: Event<TerminalWidget | undefined> = this.onDidCreateTerminalEmitter.event;
+
+    @inject(ContextKeyService)
+    protected readonly contextKeyService: ContextKeyService;
+
+    @postConstruct()
+    protected init(): void {
+        this.shell.currentChanged.connect(() => this.updateCurrentTerminal());
+        this.widgetManager.onDidCreateWidget(({ widget }) => {
+            if (widget instanceof TerminalWidget) {
+                this.updateCurrentTerminal();
+                this.onDidCreateTerminalEmitter.fire(widget);
+            }
+        });
+
+        const terminalFocusKey = this.contextKeyService.createKey<boolean>('terminalFocus', false);
+        const updateFocusKey = () => terminalFocusKey.set(this.shell.activeWidget instanceof TerminalWidget);
+        updateFocusKey();
+        this.shell.activeChanged.connect(updateFocusKey);
+    }
+
+    protected _currentTerminal: TerminalWidget | undefined;
+    get currentTerminal(): TerminalWidget | undefined {
+        return this._currentTerminal;
+    }
+    protected setCurrentTerminal(current: TerminalWidget | undefined): void {
+        if (this._currentTerminal !== current) {
+            this._currentTerminal = current;
+            this.onDidChangeCurrentTerminalEmitter.fire(this._currentTerminal);
+        }
+    }
+    protected updateCurrentTerminal(): void {
+        const widget = this.shell.currentWidget;
+        if (widget instanceof TerminalWidget) {
+            this.setCurrentTerminal(widget);
+        } else if (!this._currentTerminal || !this._currentTerminal.isVisible) {
+            this.setCurrentTerminal(undefined);
+        }
+    }
+
+    get all(): TerminalWidget[] {
+        return this.widgetManager.getWidgets(TERMINAL_WIDGET_FACTORY_ID) as TerminalWidget[];
+    }
+
+    getById(id: string): TerminalWidget | undefined {
+        return this.all.find(terminal => terminal.id === id);
+    }
 
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(TerminalCommands.NEW, {
@@ -145,7 +200,8 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
             order: '1'
         });
         menus.registerMenuAction(TerminalMenus.TERMINAL_NAVIGATOR_CONTEXT_MENU, {
-            commandId: TerminalCommands.TERMINAL_CONTEXT.id
+            commandId: TerminalCommands.TERMINAL_CONTEXT.id,
+            order: 'z'
         });
     }
 
@@ -265,12 +321,28 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
         return widget;
     }
 
-    activateTerminal(widget: TerminalWidget, options: ApplicationShell.WidgetOptions = { area: 'bottom' }): void {
-        const tabBar = this.shell.getTabBarFor(widget);
-        if (!tabBar) {
-            this.shell.addWidget(widget, options);
+    activateTerminal(widget: TerminalWidget, widgetOptions?: ApplicationShell.WidgetOptions): void {
+        this.open(widget, { widgetOptions });
+    }
+
+    // TODO: reuse WidgetOpenHandler.open
+    open(widget: TerminalWidget, options?: WidgetOpenerOptions): void {
+        const op: WidgetOpenerOptions = {
+            mode: 'activate',
+            ...options,
+            widgetOptions: {
+                area: 'bottom',
+                ...(options && options.widgetOptions)
+            }
+        };
+        if (!widget.isAttached) {
+            this.shell.addWidget(widget, op.widgetOptions);
         }
-        this.shell.activateWidget(widget.id);
+        if (op.mode === 'activate') {
+            this.shell.activateWidget(widget.id);
+        } else if (op.mode === 'reveal') {
+            this.shell.revealWidget(widget.id);
+        }
     }
 
     protected async selectTerminalCwd(): Promise<string | undefined> {
@@ -296,12 +368,12 @@ export class TerminalFrontendContribution implements TerminalService, CommandCon
         const cwd = await this.selectTerminalCwd();
         const termWidget = await this.newTerminal({ cwd });
         termWidget.start();
-        this.activateTerminal(termWidget, options);
+        this.open(termWidget, { widgetOptions: options });
     }
 
     protected async openActiveWorkspaceTerminal(options?: ApplicationShell.WidgetOptions): Promise<void> {
         const termWidget = await this.newTerminal({});
         termWidget.start();
-        this.activateTerminal(termWidget, options);
+        this.open(termWidget, { widgetOptions: options });
     }
 }

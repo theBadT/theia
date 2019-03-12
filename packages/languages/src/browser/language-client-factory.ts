@@ -23,6 +23,7 @@ import {
     ILanguageClient, LanguageClientOptions, MonacoLanguageClient,
     createConnection, LanguageContribution
 } from './language-client-services';
+import { TypeHierarchyFeature } from './typehierarchy/typehierarchy-feature';
 
 @injectable()
 export class LanguageClientFactory {
@@ -64,7 +65,7 @@ export class LanguageClientFactory {
         }
         const initializationFailedHandler = clientOptions.initializationFailedHandler;
         clientOptions.initializationFailedHandler = e => !!initializationFailedHandler && initializationFailedHandler(e);
-        return new MonacoLanguageClient({
+        const client = new MonacoLanguageClient({
             id: contribution.id,
             name: contribution.name,
             clientOptions,
@@ -75,6 +76,31 @@ export class LanguageClientFactory {
                 }
             }
         });
+        client.registerFeature(new TypeHierarchyFeature(client));
+        return this.patch4085(client);
+    }
+
+    /**
+     * see https://github.com/theia-ide/theia/issues/4085
+     * remove when monaco-languageclient is upgraded to latest vscode-languageclient
+     */
+    protected patch4085(client: MonacoLanguageClient): MonacoLanguageClient {
+        const features = client['_dynamicFeatures'] as Map<string, {
+            _listener?: Object | undefined
+            dispose?: Function
+        }>;
+        for (const feature of features.values()) {
+            if (feature.dispose) {
+                const dispose = feature.dispose.bind(feature);
+                feature.dispose = () => {
+                    dispose();
+                    if (feature._listener) {
+                        feature._listener = undefined;
+                    }
+                };
+            }
+        }
+        return client;
     }
 
 }

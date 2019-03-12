@@ -15,10 +15,11 @@
  ********************************************************************************/
 
 import { inject, injectable } from 'inversify';
-import { QuickOpenService, QuickOpenModel, QuickOpenItem, QuickOpenMode, QuickOpenHandler, QuickOpenOptions } from '@theia/core/lib/browser/quick-open/';
+import { QuickOpenService, QuickOpenModel, QuickOpenItem, QuickOpenGroupItem, QuickOpenMode, QuickOpenHandler, QuickOpenOptions } from '@theia/core/lib/browser/quick-open/';
 import { TaskService } from './task-service';
-import { TaskConfigurations } from './task-configurations';
 import { TaskInfo, TaskConfiguration } from '../common/task-protocol';
+import { TaskConfigurations } from './task-configurations';
+import URI from '@theia/core/lib/common/uri';
 
 @injectable()
 export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
@@ -32,30 +33,30 @@ export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
     @inject(TaskService)
     protected readonly taskService: TaskService;
 
-    @inject(TaskConfigurations)
-    protected readonly taskConfigurations: TaskConfigurations;
-
     @inject(QuickOpenService)
     protected readonly quickOpenService: QuickOpenService;
 
+    /**
+     * @deprecated To be removed in 0.5.0
+     */
+    @inject(TaskConfigurations)
+    protected readonly taskConfigurations: TaskConfigurations;
+
     /** Initialize this quick open model with the tasks. */
     async init(): Promise<void> {
-        this.items = [];
+        const configuredTasks = this.taskService.getConfiguredTasks();
+        const providedTasks = await this.taskService.getProvidedTasks();
 
-        const configuredTasks = await this.taskConfigurations.getTasks();
-        if (!configuredTasks.length) {
+        this.items = [];
+        this.items.push(
+            ...configuredTasks.map((t, ind) => new TaskRunQuickOpenItem(t, this.taskService, true, ind === 0 ? 'configured' : undefined)),
+            ...providedTasks.map((t, ind) => new TaskRunQuickOpenItem(t, this.taskService, false, ind === 0 ? 'provided' : undefined))
+        );
+        if (!this.items.length) {
             this.items.push(new QuickOpenItem({
                 label: 'No tasks found',
                 run: (mode: QuickOpenMode): boolean => false
             }));
-        }
-        for (const task of configuredTasks) {
-            this.items.push(new TaskRunQuickOpenItem(task, this.taskService, false));
-        }
-
-        const providedTasks = await this.taskService.getProvidedTasks();
-        for (const task of providedTasks) {
-            this.items.push(new TaskRunQuickOpenItem(task, this.taskService, true));
         }
     }
 
@@ -64,7 +65,7 @@ export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
         this.quickOpenService.open(this, {
             placeholder: 'Type the name of a task you want to execute',
             fuzzyMatchLabel: true,
-            fuzzySort: true
+            fuzzySort: false
         });
     }
 
@@ -75,7 +76,7 @@ export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
     getOptions(): QuickOpenOptions {
         return {
             fuzzyMatchLabel: true,
-            fuzzySort: true
+            fuzzySort: false
         };
     }
 
@@ -118,29 +119,43 @@ export class QuickOpenTask implements QuickOpenModel, QuickOpenHandler {
     }
 }
 
-export class TaskRunQuickOpenItem extends QuickOpenItem {
+export class TaskRunQuickOpenItem extends QuickOpenGroupItem {
 
     constructor(
         protected readonly task: TaskConfiguration,
         protected taskService: TaskService,
-        protected readonly provided: boolean
+        protected readonly isConfigured: boolean,
+        protected readonly groupLabel: string | undefined
     ) {
         super();
     }
 
     getLabel(): string {
-        return `${this.task.type}: ${this.task.label}`;
+        if (this.isConfigured) {
+            return `${this.task.type}: ${this.task.label}`;
+        }
+        return `${this.task._source}: ${this.task.label}`;
+    }
+
+    getGroupLabel(): string {
+        return this.groupLabel || '';
     }
 
     getDescription(): string {
-        return this.provided ? 'provided' : '';
+        if (this.isConfigured) {
+            return new URI(this.task._source).displayName;
+        }
+        if (this.task._scope) {
+            return new URI(this.task._scope).path.toString();
+        }
+        return this.task._source;
     }
 
     run(mode: QuickOpenMode): boolean {
         if (mode !== QuickOpenMode.OPEN) {
             return false;
         }
-        this.taskService.run(this.task.type, this.task.label);
+        this.taskService.run(this.task._source, this.task.label);
 
         return true;
     }

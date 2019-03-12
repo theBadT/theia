@@ -25,6 +25,7 @@ import {
     Position,
     Selection,
     RawColorInfo,
+    WorkspaceEditDto,
 } from '../api/plugin-api';
 import { RPCProtocol } from '../api/rpc-protocol';
 import * as theia from '@theia/plugin';
@@ -53,6 +54,7 @@ import {
     ReferenceContext,
     Location,
     ColorPresentation,
+    RenameLocation,
 } from '../api/model';
 import { CompletionAdapter } from './languages/completion';
 import { Diagnostics } from './languages/diagnostics';
@@ -68,13 +70,13 @@ import { TypeDefinitionAdapter } from './languages/type-definition';
 import { CodeActionAdapter } from './languages/code-action';
 import { LinkProviderAdapter } from './languages/link-provider';
 import { CodeLensAdapter } from './languages/lens';
-import { CommandRegistryImpl } from './command-registry';
 import { OutlineAdapter } from './languages/outline';
 import { ReferenceAdapter } from './languages/reference';
 import { WorkspaceSymbolAdapter } from './languages/workspace-symbol';
 import { SymbolInformation } from 'vscode-languageserver-types';
 import { FoldingProviderAdapter } from './languages/folding';
 import { ColorProviderAdapter } from './languages/color';
+import { RenameAdapter } from './languages/rename';
 
 type Adapter = CompletionAdapter |
     SignatureHelpAdapter |
@@ -94,7 +96,8 @@ type Adapter = CompletionAdapter |
     ReferenceAdapter |
     WorkspaceSymbolAdapter |
     FoldingProviderAdapter |
-    ColorProviderAdapter;
+    ColorProviderAdapter |
+    RenameAdapter;
 
 export class LanguagesExtImpl implements LanguagesExt {
 
@@ -105,7 +108,7 @@ export class LanguagesExtImpl implements LanguagesExt {
     private callId = 0;
     private adaptersMap = new Map<number, Adapter>();
 
-    constructor(rpc: RPCProtocol, private readonly documents: DocumentsExtImpl, private readonly commands: CommandRegistryImpl) {
+    constructor(rpc: RPCProtocol, private readonly documents: DocumentsExtImpl) {
         this.proxy = rpc.getProxy(PLUGIN_RPC_CONTEXT.LANGUAGES_MAIN);
         this.diagnostics = new Diagnostics(rpc);
     }
@@ -397,7 +400,7 @@ export class LanguagesExtImpl implements LanguagesExt {
 
     // ### Code Lens Provider begin
     registerCodeLensProvider(selector: theia.DocumentSelector, provider: theia.CodeLensProvider): theia.Disposable {
-        const callId = this.addNewAdapter(new CodeLensAdapter(provider, this.documents, this.commands.getConverter()));
+        const callId = this.addNewAdapter(new CodeLensAdapter(provider, this.documents));
         const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this.nextCallId() : undefined;
         this.proxy.$registerCodeLensSupport(callId, this.transformDocumentSelector(selector), eventHandle);
         let result = this.createDisposable(callId);
@@ -474,6 +477,22 @@ export class LanguagesExtImpl implements LanguagesExt {
         return this.withAdapter(callId, FoldingProviderAdapter, adapter => adapter.provideFoldingRanges(URI.revive(resource), context));
     }
     // ### Folging Range Provider end
+
+    // ### Rename Provider begin
+    registerRenameProvider(selector: theia.DocumentSelector, provider: theia.RenameProvider): theia.Disposable {
+        const callId = this.addNewAdapter(new RenameAdapter(provider, this.documents));
+        this.proxy.$registerRenameProvider(callId, this.transformDocumentSelector(selector), RenameAdapter.supportsResolving(provider));
+        return this.createDisposable(callId);
+    }
+
+    $provideRenameEdits(handle: number, resource: UriComponents, position: Position, newName: string): Promise<WorkspaceEditDto | undefined> {
+        return this.withAdapter(handle, RenameAdapter, adapter => adapter.provideRenameEdits(URI.revive(resource), position, newName));
+    }
+
+    $resolveRenameLocation(handle: number, resource: UriComponents, position: Position): Promise<RenameLocation | undefined> {
+        return this.withAdapter(handle, RenameAdapter, adapter => adapter.resolveRenameLocation(URI.revive(resource), position));
+    }
+    // ### Rename Provider end
 }
 
 function serializeEnterRules(rules?: theia.OnEnterRule[]): SerializedOnEnterRule[] | undefined {

@@ -24,7 +24,7 @@ import { DisposableCollection } from '@theia/core';
 import { TaskProviderRegistry, TaskResolverRegistry, TaskProvider, TaskResolver } from '@theia/task/lib/browser/task-contribution';
 import { interfaces } from 'inversify';
 import { WorkspaceService } from '@theia/workspace/lib/browser/workspace-service';
-import { TaskInfo } from '@theia/task/lib/common/task-protocol';
+import { TaskInfo, TaskExitedEvent } from '@theia/task/lib/common/task-protocol';
 import { TaskWatcher } from '@theia/task/lib/common/task-watcher';
 import { TaskService } from '@theia/task/lib/browser/task-service';
 
@@ -62,6 +62,12 @@ export class TasksMainImpl implements TasksMain {
                 });
             }
         });
+
+        this.taskWatcher.onTaskExit((event: TaskExitedEvent) => {
+            if (event.ctx === this.workspaceRootUri) {
+                this.proxy.$onDidEndTask(event.taskId);
+            }
+        });
     }
 
     $registerTaskProvider(handle: number, type: string): void {
@@ -82,6 +88,14 @@ export class TasksMainImpl implements TasksMain {
         }
     }
 
+    async $taskExecutions() {
+        const runningTasks = await this.taskService.getRunningTasks();
+        return runningTasks.map(taskInfo => ({
+            id: taskInfo.taskId,
+            task: taskInfo.config
+        }));
+    }
+
     $terminateTask(id: number): void {
         this.taskService.kill(id);
     }
@@ -89,14 +103,26 @@ export class TasksMainImpl implements TasksMain {
     protected createTaskProvider(handle: number): TaskProvider {
         return {
             provideTasks: () =>
-                this.proxy.$provideTasks(handle).then(v => v!),
+                this.proxy.$provideTasks(handle).then(v =>
+                    v!.map(taskDto =>
+                        Object.assign(taskDto, {
+                            _source: taskDto.source || 'plugin',
+                            _scope: taskDto.scope
+                        })
+                    )
+                )
         };
     }
 
     protected createTaskResolver(handle: number): TaskResolver {
         return {
             resolveTask: taskConfig =>
-                this.proxy.$resolveTask(handle, taskConfig).then(v => v!),
+                this.proxy.$resolveTask(handle, taskConfig).then(v =>
+                    Object.assign(v!, {
+                        _source: v!.source || 'plugin',
+                        _scope: v!.scope
+                    })
+                )
         };
     }
 }

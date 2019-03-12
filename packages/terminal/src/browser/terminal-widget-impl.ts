@@ -39,19 +39,13 @@ export interface TerminalWidgetFactoryOptions extends Partial<TerminalWidgetOpti
 }
 
 interface TerminalCSSProperties {
-    /* The font family (e.g. monospace).  */
-    fontFamily: string;
-
-    /* The font size, in number of px.  */
-    fontSize: number;
-
     /* The text color, as a CSS color string.  */
     foreground: string;
 
     /* The background color, as a CSS color string.  */
     background: string;
 
-    /* The color of selections. Bla */
+    /* The color of selections. */
     selection: string;
 }
 
@@ -60,7 +54,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
 
     private readonly TERMINAL = 'Terminal';
     protected readonly onTermDidClose = new Emitter<TerminalWidget>();
-    protected terminalId: number;
+    protected terminalId = -1;
     protected term: Xterm.Terminal;
     protected restored = false;
     protected closeOnDispose = true;
@@ -75,6 +69,9 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
     @inject(ILogger) @named('terminal') protected readonly logger: ILogger;
     @inject('terminal-dom-id') public readonly id: string;
     @inject(TerminalPreferences) protected readonly preferences: TerminalPreferences;
+
+    protected readonly onDidOpenEmitter = new Emitter<void>();
+    readonly onDidOpen: Event<void> = this.onDidOpenEmitter.event;
 
     protected readonly toDisposeOnConnect = new DisposableCollection();
 
@@ -99,8 +96,12 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
         this.term = new Xterm.Terminal({
             experimentalCharAtlas: 'dynamic',
             cursorBlink: false,
-            fontFamily: cssProps.fontFamily,
-            fontSize: cssProps.fontSize,
+            fontFamily: this.preferences['terminal.integrated.fontFamily'],
+            fontSize: this.preferences['terminal.integrated.fontSize'],
+            fontWeight: this.preferences['terminal.integrated.fontWeight'],
+            fontWeightBold: this.preferences['terminal.integrated.fontWeightBold'],
+            letterSpacing: this.preferences['terminal.integrated.letterSpacing'],
+            lineHeight: this.preferences['terminal.integrated.lineHeight'],
             theme: {
                 foreground: cssProps.foreground,
                 background: cssProps.background,
@@ -108,6 +109,15 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
                 selection: cssProps.selection
             },
         });
+        this.toDispose.push(this.preferences.onPreferenceChanged(change => {
+            const lastSeparator = change.preferenceName.lastIndexOf('.');
+            if (lastSeparator > 0) {
+                const preferenceName = change.preferenceName.substr(lastSeparator + 1);
+                this.term.setOption(preferenceName, this.preferences[change.preferenceName]);
+                this.needsResize = true;
+                this.update();
+            }
+        }));
 
         this.toDispose.push(this.themeService.onThemeChange(c => {
             const changedProps = this.getCSSPropertiesFromPage();
@@ -127,11 +137,11 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
 
         this.toDispose.push(this.terminalWatcher.onTerminalError(({ terminalId, error }) => {
             if (terminalId === this.terminalId) {
-                    this.dispose();
-                    this.onTermDidClose.fire(this);
-                    this.onTermDidClose.dispose();
-                    this.logger.error(`The terminal process terminated. Cause: ${error}`);
-                }
+                this.dispose();
+                this.onTermDidClose.fire(this);
+                this.onTermDidClose.dispose();
+                this.logger.error(`The terminal process terminated. Cause: ${error}`);
+            }
         }));
         this.toDispose.push(this.terminalWatcher.onTerminalExit(({ terminalId }) => {
             if (terminalId === this.terminalId) {
@@ -149,6 +159,16 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
             this.toDispose.push(disposable);
         }));
         this.toDispose.push(this.onTermDidClose);
+        this.toDispose.push(this.onDidOpenEmitter);
+    }
+
+    get processId(): Promise<number> {
+        return (async () => {
+            if (!IBaseTerminalServer.validateId(this.terminalId)) {
+                throw new Error('terminal is not started');
+            }
+            return this.shellTerminalServer.getProcessId(this.terminalId);
+        })();
     }
 
     clearOutput(): void {
@@ -188,20 +208,9 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
         /* Get the CSS properties of <html> (aka :root in css).  */
         const htmlElementProps = getComputedStyle(document.documentElement!);
 
-        const fontFamily = lookup(htmlElementProps, '--theia-terminal-font-family');
-        const fontSizeStr = lookup(htmlElementProps, '--theia-code-font-size');
         const foreground = lookup(htmlElementProps, '--theia-ui-font-color1');
         const background = lookup(htmlElementProps, '--theia-layout-color0');
         const selection = lookup(htmlElementProps, '--theia-transparent-accent-color2');
-
-        /* The font size is returned as a string, such as ' 13px').  We want to
-           return just the number of px.  */
-        const fontSizeMatch = fontSizeStr.trim().match(/^(\d+)px$/);
-        if (!fontSizeMatch) {
-            throw new Error(`Unexpected format for --theia-code-font-size (${fontSizeStr})`);
-        }
-
-        const fontSize = Number.parseInt(fontSizeMatch[1]);
 
         /* xterm.js expects #XXX of #XXXXXX for colors.  */
         const colorRe = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -215,8 +224,6 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
         }
 
         return {
-            fontSize,
-            fontFamily,
             foreground,
             background,
             selection
@@ -233,6 +240,7 @@ export class TerminalWidgetImpl extends TerminalWidget implements StatefulWidget
         this.resizeTerminalProcess();
         this.connectTerminalProcess();
         if (IBaseTerminalServer.validateId(this.terminalId)) {
+            this.onDidOpenEmitter.fire(undefined);
             return this.terminalId;
         }
         throw new Error('Failed to start terminal' + (id ? ` for id: ${id}.` : '.'));

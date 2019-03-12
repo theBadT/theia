@@ -58,7 +58,8 @@
                 "--port=3000",
                 "--no-cluster",
                 "--app-project-path=${workspaceRoot}/examples/browser",
-                "--no-app-auto-install"
+                "--no-app-auto-install",
+                "--plugins=local-dir:plugins"
             ],
             "env": {
                 "NODE_ENV": "development"
@@ -107,11 +108,11 @@
             "name": "Run Mocha Test",
             "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
             "args": [
-                "${file}",
                 "--no-timeouts",
                 "--colors",
                 "--opts",
-                "${workspaceRoot}/configs/mocha.opts"
+                "${workspaceRoot}/configs/mocha.opts",
+                "**/${fileBasenameNoExtension}.js"
             ],
             "env": {
                 "TS_NODE_PROJECT": "${workspaceRoot}/tsconfig.json"

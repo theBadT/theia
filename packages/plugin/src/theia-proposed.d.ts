@@ -35,6 +35,21 @@ declare module '@theia/plugin' {
         export function stop(id: string): void;
     }
 
+    // Experimental API
+    // https://github.com/Microsoft/vscode/blob/1.30.2/src/vs/vscode.proposed.d.ts#L1015
+    export interface FileRenameEvent {
+        readonly oldUri: Uri;
+        readonly newUri: Uri;
+    }
+
+    // Experimental API
+    // https://github.com/Microsoft/vscode/blob/1.30.2/src/vs/vscode.proposed.d.ts#L1020 
+    export interface FileWillRenameEvent {
+        readonly oldUri: Uri;
+        readonly newUri: Uri;
+        waitUntil(thenable: PromiseLike<WorkspaceEdit>): void;
+    }
+
     /**
     * The language contribution interface defines an information about language server which should be registered.
     */
@@ -63,5 +78,56 @@ declare module '@theia/plugin' {
          * Names of files. If the workspace contains some of them language server should be activated.
          */
         workspaceContains?: string[];
+    }
+
+
+    export namespace commands {
+
+        /**
+        * Get the keybindings associated to commandId.
+        * @param commandId The ID of the command for which we are looking for keybindings.
+        */
+        export function getKeyBinding(commandId: string): PromiseLike<CommandKeyBinding[] | undefined>;
+
+    }
+
+    /**
+     * Key Binding of a command
+     */
+    export interface CommandKeyBinding {
+        /**
+         * Identifier of the command.
+         */
+        id: string;
+        /**
+         * Value of the keyBinding
+         */
+        value: string;
+    }
+
+    /**
+     * Enumeration of the supported operating systems.
+     */
+    export enum OperatingSystem {
+        Windows = 'Windows',
+        Linux = 'Linux',
+        OSX = 'OSX'
+    }
+
+    export namespace workspace {
+        // Experimental API
+        // https://github.com/Microsoft/vscode/blob/1.30.2/src/vs/vscode.proposed.d.ts#L1026-L1028
+        export const onWillRenameFile: Event<FileWillRenameEvent>;
+        export const onDidRenameFile: Event<FileRenameEvent>;
+    }
+
+    export namespace env {
+
+        /**
+         * Returns the type of the operating system on the client side (like browser'OS if using browser mode). If it is neither [Windows](isWindows) nor [OS X](isOSX), then
+         * it always return with the `Linux` OS type.
+         */
+        export function getClientOperatingSystem(): PromiseLike<OperatingSystem>;
+
     }
 }

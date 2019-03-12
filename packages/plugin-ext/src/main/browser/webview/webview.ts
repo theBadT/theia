@@ -72,7 +72,7 @@ export class WebviewWidget extends BaseWidget {
     }
 
     setHTML(html: string) {
-        html = html.replace('theia-resource:/', '/webview/');
+        html = html.replace(/theia-resource:/g, '/webview/');
         const newDocument = new DOMParser().parseFromString(html, 'text/html');
         if (!newDocument || !newDocument.body) {
             return;
@@ -115,7 +115,6 @@ export class WebviewWidget extends BaseWidget {
                     this.handleMessage(e);
                 };
                 newFrame.style.visibility = 'visible';
-                newFrame.contentWindow!.focus();
             }
         };
 
@@ -138,6 +137,10 @@ export class WebviewWidget extends BaseWidget {
         newFrame.contentDocument!.close();
 
         this.updateSandboxAttribute(newFrame);
+    }
+
+    focus() {
+      this.iframe.contentWindow!.focus();
     }
 
     private reloadFrame() {
