@@ -36,6 +36,7 @@ import { DebugSessionOptions, InternalDebugSessionOptions } from './debug-sessio
 import { DebugConfiguration } from '../common/debug-common';
 import { SourceBreakpoint } from './breakpoint/breakpoint-marker';
 import { FileSystem } from '@theia/filesystem/lib/common';
+import { TerminalWidgetOptions } from '@theia/terminal/lib/browser/base/terminal-widget';
 
 export enum DebugState {
     Inactive,
@@ -63,7 +64,7 @@ export class DebugSession implements CompositeTreeElement {
 
     constructor(
         readonly id: string,
-        readonly options: DebugSessionOptions,
+        readonly debugSessionOptions: DebugSessionOptions,
         protected readonly connection: DebugSessionConnection,
         protected readonly terminalServer: TerminalService,
         protected readonly editorManager: EditorManager,
@@ -111,7 +112,7 @@ export class DebugSession implements CompositeTreeElement {
     }
 
     get configuration(): DebugConfiguration {
-        return this.options.configuration;
+        return this.debugSessionOptions.configuration;
     }
 
     protected _capabilities: DebugProtocol.Capabilities = {};
@@ -367,7 +368,11 @@ export class DebugSession implements CompositeTreeElement {
     }
 
     protected async runInTerminal({ arguments: { title, cwd, args, env } }: DebugProtocol.RunInTerminalRequest): Promise<DebugProtocol.RunInTerminalResponse['body']> {
-        const terminal = await this.terminalServer.newTerminal({ title, cwd, shellPath: args[0], shellArgs: args.slice(1), env });
+        return this.doRunInTerminal({ title, cwd, shellPath: args[0], shellArgs: args.slice(1), env });
+    }
+
+    protected async doRunInTerminal(options: TerminalWidgetOptions): Promise<DebugProtocol.RunInTerminalResponse['body']> {
+        const terminal = await this.terminalServer.newTerminal(options);
         this.terminalServer.activateTerminal(terminal);
         const processId = await terminal.start();
         return { processId };
@@ -593,8 +598,8 @@ export class DebugSession implements CompositeTreeElement {
     }
 
     get label(): string {
-        if (InternalDebugSessionOptions.is(this.options) && this.options.id) {
-            return this.configuration.name + ' (' + (this.options.id + 1) + ')';
+        if (InternalDebugSessionOptions.is(this.debugSessionOptions) && this.debugSessionOptions.id) {
+            return this.configuration.name + ' (' + (this.debugSessionOptions.id + 1) + ')';
         }
         return this.configuration.name;
     }

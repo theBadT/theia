@@ -27,6 +27,29 @@ import { DebugSession } from '@theia/debug/lib/browser/debug-session';
 import { DebugSessionConnection } from '@theia/debug/lib/browser/debug-session-connection';
 import { IWebSocket } from 'vscode-ws-jsonrpc/lib/socket/socket';
 import { FileSystem } from '@theia/filesystem/lib/common';
+import { DebugProtocol } from 'vscode-debugprotocol';
+import { TerminalWidgetOptions } from '@theia/terminal/lib/browser/base/terminal-widget';
+
+export class PluginDebugSession extends DebugSession {
+    constructor(
+        readonly id: string,
+        readonly debugSessionOptions: DebugSessionOptions,
+        protected readonly connection: DebugSessionConnection,
+        protected readonly terminalServer: TerminalService,
+        protected readonly editorManager: EditorManager,
+        protected readonly breakpoints: BreakpointManager,
+        protected readonly labelProvider: LabelProvider,
+        protected readonly messages: MessageClient,
+        protected readonly fileSystem: FileSystem,
+        protected readonly terminalWidgetOptions: TerminalWidgetOptions) {
+        super(id, debugSessionOptions, connection, terminalServer, editorManager, breakpoints, labelProvider, messages, fileSystem);
+    }
+
+    protected async doRunInTerminal(terminalWidgetOptions: TerminalWidgetOptions): Promise<DebugProtocol.RunInTerminalResponse['body']> {
+        const options = Object.assign({}, terminalWidgetOptions, this.terminalWidgetOptions);
+        return super.doRunInTerminal(options);
+    }
+}
 
 /**
  * Session factory for a client debug session that communicates with debug adapter contributed as plugin.
@@ -42,7 +65,8 @@ export class PluginDebugSessionFactory extends DefaultDebugSessionFactory {
         protected readonly outputChannelManager: OutputChannelManager,
         protected readonly debugPreferences: DebugPreferences,
         protected readonly connectionFactory: (sessionId: string) => Promise<IWebSocket>,
-        protected readonly fileSystem: FileSystem
+        protected readonly fileSystem: FileSystem,
+        protected readonly terminalWidgetOptions: TerminalWidgetOptions
     ) {
         super();
     }
@@ -53,7 +77,7 @@ export class PluginDebugSessionFactory extends DefaultDebugSessionFactory {
             this.connectionFactory,
             this.getTraceOutputChannel());
 
-        return new DebugSession(
+        return new PluginDebugSession(
             sessionId,
             options,
             connection,
@@ -62,6 +86,7 @@ export class PluginDebugSessionFactory extends DefaultDebugSessionFactory {
             this.breakpoints,
             this.labelProvider,
             this.messages,
-            this.fileSystem);
+            this.fileSystem,
+            this.terminalWidgetOptions);
     }
 }

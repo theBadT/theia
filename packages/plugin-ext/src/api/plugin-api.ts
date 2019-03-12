@@ -978,6 +978,7 @@ export interface DebugExt {
     $getConfigurationSnippets(debugType: string): Promise<IJSONSchemaSnippet[]>;
     $createDebugSession(debugConfiguration: theia.DebugConfiguration): Promise<string>;
     $terminateDebugSession(sessionId: string): Promise<void>;
+    $getTerminalCreationOptions(debugType: string): Promise<any>;
 }
 
 export interface DebugMain {

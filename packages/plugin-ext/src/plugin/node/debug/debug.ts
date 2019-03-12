@@ -227,6 +227,12 @@ export class DebugExtImpl implements DebugExt {
         return contribution && contribution.configurationSnippets || [];
     }
 
+    async $getTerminalCreationOptions(debugType: string): Promise<void> {
+        return this.doGetTerminalCreationOptions(debugType);
+    }
+
+    protected async doGetTerminalCreationOptions(debugType: string): Promise<any> { }
+
     async $provideDebugConfigurations(debugType: string, workspaceFolderUri: string | undefined): Promise<theia.DebugConfiguration[]> {
         let result: theia.DebugConfiguration[] = [];
 
