@@ -140,7 +140,9 @@ export class CppLanguageClientContribution extends BaseLanguageClientContributio
     protected getStartParameters(): CppStartParameters {
         return {
             clangdExecutable: this.cppPreferences['cpp.clangdExecutable'],
-            clangdArgs: this.cppPreferences['cpp.clangdArgs']
+            clangdArgs: this.cppPreferences['cpp.clangdArgs'],
+            clangTidy: this.cppPreferences['cpp.clangTidy'],
+            clangTidyChecks: this.cppPreferences['cpp.clangTidyChecks']
         };
     }
 }

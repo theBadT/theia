@@ -1,6 +1,7 @@
 # Change Log
 
 ## v0.5.0
+- [cpp] added new clang-tidy and clang-tidy-checks preferences to lint cpp program.
 - [plugin] `workspace.openTextDocument` API now respects the contributed `FileSystemProviders`
 
 Breaking changes:

@@ -79,6 +79,28 @@ To get this working, you need to enable clangd's global index using the
             "cpp.clangdArgs": "--background-index"
         }
 
+## Using the clang-tidy linter
+
+Note: This functionality is available when using clangd 9 and later.
+
+You can set the preference 'cpp.clang-tidy' to initiate the linter. When the preference is set, there are two possibilities to pass the checks arguments:
+
+- using the preferences:  'cpp.clang-tidy-checks'
+- using the file '.clang-tidy' . The file is located in the same folder of the files or a parent folder.
+
+Note: using the preference checks will supersede the value found in the .clang-tidy file.
+
+The syntax used to fill the checks can be found at http://clang.llvm.org/extra/clang-tidy/
+
+clang-tidy has its own checks and can also run Clang static analyzer checks. Each check has a name and the checks to run can be chosen using the -checks= option, which specifies a comma-separated list of positive and negative (prefixed with -) globs. Positive globs add subsets of checks, negative globs remove them. For example,
+
+    - Example for the preferences: "cpp.clang-tidy-checks": "*,-readability-*"
+        - Meaning: enables all list-checks and disable all readability-* checks
+
+    - Example for the .clang-tidy file: Checks: -*,readability-*
+        - Meaning: disable all list-checks and enable all readability-* checks
+
 ## License
+
 - [Eclipse Public License 2.0](http://www.eclipse.org/legal/epl-2.0/)
 - [一 (Secondary) GNU General Public License, version 2 with the GNU Classpath Exception](https://projects.eclipse.org/license/secondary-gpl-2.0-cp)
