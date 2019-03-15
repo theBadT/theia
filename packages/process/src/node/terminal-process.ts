@@ -15,12 +15,14 @@
  ********************************************************************************/
 
 import { injectable, inject, named } from 'inversify';
-import { ILogger } from '@theia/core/lib/common';
+import { ILogger, Mutable } from '@theia/core/lib/common';
 import { Process, ProcessType, ProcessOptions } from './process';
 import { ProcessManager } from './process-manager';
 import { IPty, spawn } from '@theia/node-pty';
 import { MultiRingBuffer, MultiRingBufferReadableStream } from './multi-ring-buffer';
+import { DevNullStream } from './dev-null-stream';
 import { signame } from './utils';
+import { Writable } from 'stream';
 
 export const TerminalProcessOptions = Symbol('TerminalProcessOptions');
 export interface TerminalProcessOptions extends ProcessOptions {
@@ -36,8 +38,12 @@ export class TerminalProcess extends Process {
 
     protected readonly terminal: IPty;
 
+    readonly outputStream = this.createOutputStream();
+    readonly errorStream = new DevNullStream();
+    readonly inputStream: Writable;
+
     constructor(
-        @inject(TerminalProcessOptions) options: TerminalProcessOptions,
+        @inject(TerminalProcessOptions) options: Mutable<TerminalProcessOptions>,
         @inject(ProcessManager) processManager: ProcessManager,
         @inject(MultiRingBuffer) protected readonly ringBuffer: MultiRingBuffer,
         @inject(ILogger) @named('process') logger: ILogger
@@ -45,6 +51,19 @@ export class TerminalProcess extends Process {
         super(processManager, logger, ProcessType.Terminal, options);
 
         this.logger.debug('Starting terminal process', JSON.stringify(options, undefined, 2));
+
+        // node-pty doesn't handle the `shell` option by default.
+        // work-around: spawn the shell ourselves.
+        if (options.options && options.options.shell) {
+            const command = options.command;
+            if (process.platform === 'win32') {
+                options.command = 'cmd';
+                options.args = ['/c', command];
+            } else {
+                options.command = 'sh';
+                options.args = ['-i', '-c', command];
+            }
+        }
 
         try {
             this.terminal = spawn(
@@ -79,7 +98,16 @@ export class TerminalProcess extends Process {
             this.terminal.on('data', (data: string) => {
                 ringBuffer.enq(data);
             });
+
+            this.inputStream = new Writable({
+                write: (chunk: string) => {
+                    this.write(chunk);
+                },
+            });
+
         } catch (err) {
+            this.inputStream = new DevNullStream();
+
             // node-pty throws exceptions on Windows.
             // Call the client error handler, but first give them a chance to register it.
             process.nextTick(() => {

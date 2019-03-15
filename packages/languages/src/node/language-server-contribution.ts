@@ -92,7 +92,7 @@ export abstract class BaseLanguageServerContribution implements LanguageServerCo
 
     protected async createProcessStreamConnectionAsync(command: string, args?: string[], options?: cp.SpawnOptions): Promise<IConnection> {
         const process = await this.spawnProcessAsync(command, args, options);
-        return createStreamConnection(process.output, process.input, () => process.kill());
+        return createStreamConnection(process.outputStream, process.inputStream, () => process.kill());
     }
 
     /**
@@ -107,7 +107,7 @@ export abstract class BaseLanguageServerContribution implements LanguageServerCo
 
     protected spawnProcessAsync(command: string, args?: string[], options?: cp.SpawnOptions): Promise<RawProcess> {
         const rawProcess = this.processFactory({ command, args, options });
-        rawProcess.process.stderr.on('data', this.logError.bind(this));
+        rawProcess.errorStream.on('data', this.logError.bind(this));
         return new Promise<RawProcess>((resolve, reject) => {
             rawProcess.onError((error: ProcessErrorEvent) => {
                 this.onDidFailSpawnProcess(error);

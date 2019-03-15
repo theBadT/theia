@@ -20,6 +20,7 @@ import { ILogger } from '@theia/core/lib/common';
 import { Process, ProcessType, ProcessOptions, ForkOptions } from './process';
 import { ChildProcess, spawn, fork } from 'child_process';
 import * as stream from 'stream';
+import { DevNullStream } from './dev-null-stream';
 
 export const RawProcessOptions = Symbol('RawProcessOptions');
 
@@ -50,30 +51,30 @@ export interface RawProcessFactory {
     (options: RawProcessOptions | RawForkOptions): RawProcess;
 }
 
-/**
- * A Node stream like `/dev/null`.
- *
- * Writing goes to a black hole, reading returns `EOF`.
- */
-class DevNullStream extends stream.Duplex {
-    // tslint:disable-next-line:no-any
-    _write(chunk: any, encoding: string, callback: (err?: Error) => void): void {
-        callback();
-    }
-
-    _read(size: number): void {
-        // tslint:disable-next-line:no-null-keyword
-        this.push(null);
-    }
-}
-
 @injectable()
 export class RawProcess extends Process {
 
+    /**
+     * @deprecated use `inputStream` instead.
+     */
     readonly input: stream.Writable;
+
+    /**
+     * @deprecated use `outputStream` instead.
+     */
     readonly output: stream.Readable;
+
+    /**
+     * @deprecated use `errorStream` instead.
+     */
     readonly errorOutput: stream.Readable;
+
     readonly process: ChildProcess;
+
+    // shim to not break APIs
+    get outputStream() { return this.output; }
+    get errorStream() { return this.errorOutput; }
+    get inputStream() { return this.input; }
 
     constructor(
         @inject(RawProcessOptions) options: RawProcessOptions | RawForkOptions,
