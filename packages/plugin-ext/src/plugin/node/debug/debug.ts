@@ -232,7 +232,7 @@ export class DebugExtImpl implements DebugExt {
         return this.doGetTerminalCreationOptions(debugType);
     }
 
-    protected async doGetTerminalCreationOptions(debugType: string): Promise<TerminalOptionsExt | undefined> {
+    async doGetTerminalCreationOptions(debugType: string): Promise<TerminalOptionsExt | undefined> {
         return undefined;
     }
 
