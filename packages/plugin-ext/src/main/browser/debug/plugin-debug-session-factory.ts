@@ -33,7 +33,7 @@ import { TerminalWidgetOptions } from '@theia/terminal/lib/browser/base/terminal
 export class PluginDebugSession extends DebugSession {
     constructor(
         readonly id: string,
-        readonly debugSessionOptions: DebugSessionOptions,
+        readonly options: DebugSessionOptions,
         protected readonly connection: DebugSessionConnection,
         protected readonly terminalServer: TerminalService,
         protected readonly editorManager: EditorManager,
@@ -42,7 +42,7 @@ export class PluginDebugSession extends DebugSession {
         protected readonly messages: MessageClient,
         protected readonly fileSystem: FileSystem,
         protected readonly terminalWidgetOptions: TerminalWidgetOptions) {
-        super(id, debugSessionOptions, connection, terminalServer, editorManager, breakpoints, labelProvider, messages, fileSystem);
+        super(id, options, connection, terminalServer, editorManager, breakpoints, labelProvider, messages, fileSystem);
     }
 
     protected async doRunInTerminal(terminalWidgetOptions: TerminalWidgetOptions): Promise<DebugProtocol.RunInTerminalResponse['body']> {

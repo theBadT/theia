@@ -64,7 +64,7 @@ export class DebugSession implements CompositeTreeElement {
 
     constructor(
         readonly id: string,
-        readonly debugSessionOptions: DebugSessionOptions,
+        readonly options: DebugSessionOptions,
         protected readonly connection: DebugSessionConnection,
         protected readonly terminalServer: TerminalService,
         protected readonly editorManager: EditorManager,
@@ -112,7 +112,7 @@ export class DebugSession implements CompositeTreeElement {
     }
 
     get configuration(): DebugConfiguration {
-        return this.debugSessionOptions.configuration;
+        return this.options.configuration;
     }
 
     protected _capabilities: DebugProtocol.Capabilities = {};
@@ -598,8 +598,8 @@ export class DebugSession implements CompositeTreeElement {
     }
 
     get label(): string {
-        if (InternalDebugSessionOptions.is(this.debugSessionOptions) && this.debugSessionOptions.id) {
-            return this.configuration.name + ' (' + (this.debugSessionOptions.id + 1) + ')';
+        if (InternalDebugSessionOptions.is(this.options) && this.options.id) {
+            return this.configuration.name + ' (' + (this.options.id + 1) + ')';
         }
         return this.configuration.name;
     }

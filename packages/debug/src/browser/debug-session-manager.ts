@@ -203,7 +203,7 @@ export class DebugSessionManager {
             return session;
         }
         await session.terminate(!!restart);
-        const { debugSessionOptions: options, configuration } = session;
+        const { options, configuration } = session;
         configuration.__restart = restart;
         return this.start(options);
     }
