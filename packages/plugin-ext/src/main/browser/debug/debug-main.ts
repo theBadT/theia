@@ -115,7 +115,7 @@ export class DebugMainImpl implements DebugMain {
     async $registerDebuggerContribution(description: DebuggerDescription): Promise<void> {
         const disposable = new DisposableCollection();
         this.toDispose.set(description.type, disposable);
-        const terminalWidgetOptions = await this.debugExt.$getTerminalCreationOptions(description.type);
+        const terminalOptionsExt = await this.debugExt.$getTerminalCreationOptions(description.type);
 
         const debugSessionFactory = new PluginDebugSessionFactory(
             this.terminalService,
@@ -130,7 +130,7 @@ export class DebugMainImpl implements DebugMain {
                 return new PluginWebSocketChannel(connection);
             },
             this.fileSystem,
-            terminalWidgetOptions
+            terminalOptionsExt
         );
 
         disposable.pushAll([

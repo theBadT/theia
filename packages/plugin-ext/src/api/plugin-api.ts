@@ -61,7 +61,6 @@ import { IJSONSchema, IJSONSchemaSnippet } from '@theia/core/lib/common/json-sch
 import { DebuggerDescription } from '@theia/debug/lib/common/debug-service';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { SymbolInformation } from 'vscode-languageserver-types';
-import { string } from 'prop-types';
 
 export interface PluginInitData {
     plugins: PluginMetadata[];
@@ -738,8 +737,8 @@ export interface PreferenceChangeExt {
 }
 
 export interface TerminalOptionsExt {
-    attributes: {
-        [key: string]: any;
+    attributes?: {
+        [key: string]: string;
     }
 }
 

@@ -29,6 +29,7 @@ import { IWebSocket } from 'vscode-ws-jsonrpc/lib/socket/socket';
 import { FileSystem } from '@theia/filesystem/lib/common';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { TerminalWidgetOptions } from '@theia/terminal/lib/browser/base/terminal-widget';
+import { TerminalOptionsExt } from '../../../api/plugin-api';
 
 export class PluginDebugSession extends DebugSession {
     constructor(
@@ -41,12 +42,12 @@ export class PluginDebugSession extends DebugSession {
         protected readonly labelProvider: LabelProvider,
         protected readonly messages: MessageClient,
         protected readonly fileSystem: FileSystem,
-        protected readonly terminalWidgetOptions: TerminalWidgetOptions) {
+        protected readonly terminalOptionsExt: TerminalOptionsExt | undefined) {
         super(id, options, connection, terminalServer, editorManager, breakpoints, labelProvider, messages, fileSystem);
     }
 
     protected async doRunInTerminal(terminalWidgetOptions: TerminalWidgetOptions): Promise<DebugProtocol.RunInTerminalResponse['body']> {
-        terminalWidgetOptions = Object.assign({}, terminalWidgetOptions, this.terminalWidgetOptions);
+        terminalWidgetOptions = Object.assign({}, terminalWidgetOptions, this.terminalOptionsExt);
         return super.doRunInTerminal(terminalWidgetOptions);
     }
 }
@@ -66,7 +67,7 @@ export class PluginDebugSessionFactory extends DefaultDebugSessionFactory {
         protected readonly debugPreferences: DebugPreferences,
         protected readonly connectionFactory: (sessionId: string) => Promise<IWebSocket>,
         protected readonly fileSystem: FileSystem,
-        protected readonly terminalWidgetOptions: TerminalWidgetOptions
+        protected readonly terminalOptionsExt: TerminalOptionsExt | undefined
     ) {
         super();
     }
@@ -87,6 +88,6 @@ export class PluginDebugSessionFactory extends DefaultDebugSessionFactory {
             this.labelProvider,
             this.messages,
             this.fileSystem,
-            this.terminalWidgetOptions);
+            this.terminalOptionsExt);
     }
 }
