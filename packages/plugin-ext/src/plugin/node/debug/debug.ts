@@ -20,7 +20,8 @@ import { RPCProtocol } from '../../../api/rpc-protocol';
 import {
     PLUGIN_RPC_CONTEXT as Ext,
     DebugMain,
-    DebugExt
+    DebugExt,
+    TerminalOptionsExt
 } from '../../../api/plugin-api';
 import * as theia from '@theia/plugin';
 import uuid = require('uuid');
@@ -227,11 +228,13 @@ export class DebugExtImpl implements DebugExt {
         return contribution && contribution.configurationSnippets || [];
     }
 
-    async $getTerminalCreationOptions(debugType: string): Promise<void> {
+    async $getTerminalCreationOptions(debugType: string): Promise<TerminalOptionsExt | undefined> {
         return this.doGetTerminalCreationOptions(debugType);
     }
 
-    protected async doGetTerminalCreationOptions(debugType: string): Promise<any> { }
+    protected async doGetTerminalCreationOptions(debugType: string): Promise<TerminalOptionsExt | undefined> {
+        return undefined;
+    }
 
     async $provideDebugConfigurations(debugType: string, workspaceFolderUri: string | undefined): Promise<theia.DebugConfiguration[]> {
         let result: theia.DebugConfiguration[] = [];

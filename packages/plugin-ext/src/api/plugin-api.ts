@@ -61,6 +61,7 @@ import { IJSONSchema, IJSONSchemaSnippet } from '@theia/core/lib/common/json-sch
 import { DebuggerDescription } from '@theia/debug/lib/common/debug-service';
 import { DebugProtocol } from 'vscode-debugprotocol';
 import { SymbolInformation } from 'vscode-languageserver-types';
+import { string } from 'prop-types';
 
 export interface PluginInitData {
     plugins: PluginMetadata[];
@@ -735,6 +736,13 @@ export interface PreferenceChangeExt {
     preferenceName: string,
     newValue: any
 }
+
+export interface TerminalOptionsExt {
+    attributes: {
+        [key: string]: any;
+    }
+}
+
 export interface PreferenceRegistryExt {
     $acceptConfigurationChanged(data: { [key: string]: any }, eventData: PreferenceChangeExt): void;
 }
@@ -978,7 +986,7 @@ export interface DebugExt {
     $getConfigurationSnippets(debugType: string): Promise<IJSONSchemaSnippet[]>;
     $createDebugSession(debugConfiguration: theia.DebugConfiguration): Promise<string>;
     $terminateDebugSession(sessionId: string): Promise<void>;
-    $getTerminalCreationOptions(debugType: string): Promise<any>;
+    $getTerminalCreationOptions(debugType: string): Promise<TerminalOptionsExt | undefined>;
 }
 
 export interface DebugMain {

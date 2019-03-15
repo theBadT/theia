@@ -46,8 +46,8 @@ export class PluginDebugSession extends DebugSession {
     }
 
     protected async doRunInTerminal(terminalWidgetOptions: TerminalWidgetOptions): Promise<DebugProtocol.RunInTerminalResponse['body']> {
-        const options = Object.assign({}, terminalWidgetOptions, this.terminalWidgetOptions);
-        return super.doRunInTerminal(options);
+        terminalWidgetOptions = Object.assign({}, terminalWidgetOptions, this.terminalWidgetOptions);
+        return super.doRunInTerminal(terminalWidgetOptions);
     }
 }
 
