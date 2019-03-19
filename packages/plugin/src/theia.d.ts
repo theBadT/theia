@@ -4085,6 +4085,14 @@ declare module '@theia/plugin' {
         export function findFiles(include: GlobPattern, exclude?: GlobPattern | null, maxResults?: number, token?: CancellationToken): PromiseLike<Uri[]>;
 
         /**
+         * Save all dirty files.
+         *
+         * @param includeUntitled Also save files that have been created during this session.
+         * @return A thenable that resolves when the files have been saved.
+         */
+        export function saveAll(includeUntitled?: boolean): PromiseLike<boolean>;
+
+        /**
          * Make changes to one or many resources or create, delete, and rename resources as defined by the given
          * [workspace edit](#WorkspaceEdit).
          *
@@ -5039,7 +5047,7 @@ declare module '@theia/plugin' {
      * the given [edit](#CompletionItem.textEdit) is used.
      *
      * When selecting a completion item in the editor its defined or synthesized text edit will be applied
-     * to *all* cursors/selections whereas [additionalTextEdits](CompletionItem.additionalTextEdits) will be
+     * to *all* cursors/selections whereas [additionalTextEdits](#additionalTextEdits) will be
      * applied as provided.
      *
      * @see [CompletionItemProvider.provideCompletionItems](#CompletionItemProvider.provideCompletionItems)
@@ -5127,7 +5135,7 @@ declare module '@theia/plugin' {
         /**
          * An optional [command](#Command) that is executed *after* inserting this completion. *Note* that
          * additional modifications to the current document should be described with the
-         * [additionalTextEdits](#CompletionItem.additionalTextEdits)-property.
+         * [additionalTextEdits](#additionalTextEdits)-property.
          */
         command?: Command;
 
@@ -5456,7 +5464,7 @@ declare module '@theia/plugin' {
      * A code action represents a change that can be performed in code, e.g. to fix a problem or
      * to refactor code.
      *
-     * A CodeAction must set either [`edit`](CodeAction#edit) and/or a [`command`](CodeAction#command).
+     * A CodeAction must set either [`edit`](#edit) and/or a [`command`](#command).
      * If both are supplied, the `edit` is applied first, then the command is executed.
      */
     export class CodeAction {
@@ -6222,7 +6230,7 @@ declare module '@theia/plugin' {
          * Register a formatting provider for a document range.
          *
          * *Note:* A document range provider is also a [document formatter](#DocumentFormattingEditProvider)
-         * which means there is no need to [register](registerDocumentFormattingEditProvider) a document
+         * which means there is no need to [register](#registerDocumentFormattingEditProvider) a document
          * formatter when also registering a range provider.
          *
          * Multiple providers can be registered for a language. In that case providers are sorted
